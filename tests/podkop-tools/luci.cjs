@@ -79,8 +79,37 @@ function env(write=true) {
   await h.polls[0]();assert.ok(!text(tree).includes('4,5 Мбит/с'));assert.ok(text(tree).includes('Устарела'));
   h.state.busy=true;await h.polls[0]();assert.ok(walk(tree).filter(n=>n.tag==='button'&&text(n)!=='Обновить список').every(n=>n.disabled));
   const ro=env(false), rv=ro.load('dashboard'), rt=rv.render(await rv.load());assert.ok(walk(rt).filter(n=>n.tag==='button'&&text(n)!=='Обновить список').every(n=>n.disabled));
+  // A cron task during speed cooldown pauses the queue instead of discarding it.
+  const cron=env(), cv=cron.load('dashboard');cv.render(await cv.load());let cronReads=0;
+  cron.state.speed_next_at=1060;
+  cron.hooks.request=kind=>{if(kind==='status')cron.state.busy=++cronReads===2||cronReads===3;if(kind==='speed')assert.equal(cron.state.busy,false);};
+  await cv.runTests(cron.state.nodes.map(n=>n.id),['speed'],4194304);
+  assert.deepEqual(cron.requests.filter(r=>r.method==='speed').map(r=>r.args[0]),cron.state.nodes.map(n=>n.id),'cron must resume each speed probe exactly once');
+  assert.equal(cv.progress.done,2);assert.equal(cv.running,false);assert.ok(!cron.requests.some(r=>['select','apply','fetch','seed'].includes(r.method)));
+  // A completed diagnostic remains valid when cron obtains the next lock.
+  const after=env(), av=after.load('dashboard');av.render(await av.load());let measured=0,busyReads=0;
+  after.hooks.request=kind=>{if(kind==='latency'){assert.equal(after.state.busy,false);measured++;}if(kind==='status')after.state.busy=measured===1&&++busyReads<=100;};
+  av.failures[after.state.nodes[0].id]={latency:'previous_failure'};
+  await av.runTests(after.state.nodes.map(n=>n.id),['latency','service']);
+  assert.equal(measured,2,'a following cron lock must not invalidate a completed receipt');
+  assert.deepEqual(after.requests.filter(r=>['latency','service'].includes(r.method)).map(r=>[r.method,r.args[0]]),
+    after.state.nodes.flatMap(n=>[['latency',n.id],['service',n.id]]),'resume remaining tests and servers without duplicate probes');
+  assert.ok(busyReads>100,'wait for cron even beyond the diagnostic receipt deadline');
+  assert.deepEqual(av.failures[after.state.nodes[0].id],{},'retain successful receipt and clear the previous failure');
+  assert.equal(av.progress.done,2);assert.equal(av.progress.message,'Проверка завершена');
+  assert.ok(!after.requests.some(r=>['select','apply','fetch','seed'].includes(r.method)));
+  // Stop still abandons the queue while an unrelated task owns the lock.
+  const stop=env(), sv=stop.load('dashboard');sv.render(await sv.load());let stopReads=0;
+  stop.state.speed_next_at=1060;
+  stop.hooks.request=kind=>{if(kind==='status'){
+    if(++stopReads===2)stop.state.busy=true;
+    if(stopReads===3){assert.equal(sv.progress.message,'Ожидание текущего задания');sv.stopTests();}
+  }};
+  await sv.runTests(stop.state.nodes.map(n=>n.id),['speed'],4194304);
+  assert.ok(!stop.requests.some(r=>r.method==='speed'));assert.equal(sv.running,false);assert.equal(sv.progress.done,0);
+  assert.ok(sv.progress.message.startsWith('Проверка остановлена'));
   const settings=h.load('settings');settings.render(await settings.load());
   const url=h.options.find(o=>o.name==='subscription_url');assert.equal(url.password,true);assert.equal(url.cfgvalue(),'');await url.write('main','https://provider.invalid/sub?token=TEST');assert.deepEqual(h.requests.at(-1),{method:'source',args:['https://provider.invalid/sub?token=TEST']});assert.equal(url.validate('', 'https://provider.invalid/sub?token=PRIVATE'),true);assert.notEqual(url.validate('','http://provider.invalid/sub'),true);
   assert.ok(!text(tree).includes('subscription_url'));assert.ok(h.options.some(o=>o.name==='apply_policy'&&o.values.some(v=>v[0]==='manual')));
-  console.log('PASS shipped LuCI views: rendering, errors, permissions, polling, apply confirmation, per-node RPC, masked URL');
+  console.log('PASS shipped LuCI views: rendering, errors, permissions, polling, apply confirmation, per-node RPC, masked URL; cron wait, receipt preservation, continuation, cancellation, no duplicate probes');
 })().catch(e=>{console.error(e);process.exitCode=1;});

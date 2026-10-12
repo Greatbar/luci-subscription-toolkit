@@ -94,21 +94,20 @@ return view.extend({
                 for (const kind of kinds) {
                     if (this.stopping) break;
                     let s = await this.refresh();
-                    // Navigating away abandons the remaining queue. The current bounded backend job cleans itself up.
-                    if (this.container && this.container.isConnected === false) { this.stopping = true; break; }
-                    if (s.busy) { this.progress.message = 'Другое задание выполняется; очередь остановлена'; this.stopping = true; break; }
-                    if (s.compatible === false) { this.stopping = true; break; }
-                    if (kind === 'speed') {
-                        if (s.speed_bytes !== cap) { this.progress.message = 'Лимит трафика изменился; подтвердите запуск заново'; this.stopping = true; break; }
-                        while (s.speed_next_at * 1000 > Date.now() && !this.stopping) {
-                            this.progress.message = 'Ожидание интервала скорости'; this.redraw();
-                            await new Promise(resolve => setTimeout(resolve, 1000)); s = await this.refresh();
-                            if (this.container && this.container.isConnected === false) this.stopping = true;
-                            if (s.busy || s.speed_bytes !== cap) { this.progress.message = 'Состояние изменилось; очередь остановлена'; this.stopping = true; }
+                    // Pause for the existing worker and its rate limit; never compete with cron.
+                    while (!this.stopping) {
+                        if (this.container && this.container.isConnected === false) { this.stopping = true; break; }
+                        if (s.compatible === false) { this.progress.message = 'Несовместимое состояние'; this.stopping = true; break; }
+                        if (kind === 'speed' && s.speed_bytes !== cap) {
+                            this.progress.message = 'Лимит трафика изменился; подтвердите запуск заново'; this.stopping = true; break;
                         }
-                        if (this.stopping) break;
+                        const cooldown = kind === 'speed' && s.speed_next_at * 1000 > Date.now();
+                        if (!s.busy && !cooldown) break;
+                        this.progress.message = s.busy ? 'Ожидание текущего задания' : 'Ожидание интервала скорости';
+                        this.redraw();
+                        await new Promise(resolve => setTimeout(resolve, 1000)); s = await this.refresh();
                     }
-                    if (this.container && this.container.isConnected === false) { this.stopping = true; break; }
+                    if (this.stopping) break;
                     this.failures[id] = this.failures[id] || {};
                     if (!(s.nodes || []).some(n => n.id === id)) { this.failures[id][kind] = 'Сервер больше не в списке'; break; }
                     const sequence = s.measurement ? s.measurement.sequence : 0;
@@ -120,9 +119,9 @@ return view.extend({
                     do {
                         await new Promise(resolve => setTimeout(resolve, 500)); s = await this.refresh();
                         receipt = s.measurement;
-                        if (receipt && receipt.sequence > sequence && !s.busy) break;
+                        if (receipt && receipt.sequence > sequence) break;
                     } while (Date.now() < deadline);
-                    if (!receipt || receipt.sequence <= sequence || s.busy || receipt.id !== id || receipt.kind !== kind) {
+                    if (!receipt || receipt.sequence <= sequence || receipt.id !== id || receipt.kind !== kind) {
                         this.progress.message = 'Не удалось подтвердить завершение; очередь остановлена'; this.stopping = true; break;
                     }
                     if (!receipt.ok) this.failures[id][kind] = receipt.error || 'Проверка не выполнена';
