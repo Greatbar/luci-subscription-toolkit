@@ -1,0 +1,28 @@
+# Compatibility profile / профиль совместимости
+
+- OpenWrt 25.12.5 userspace, x86_64 Docker test namespace, host kernel.
+- Unmodified public Podkop 0.7.22 source at
+  `c0a2736bb95884c19fedf638345ed6148c5fd6af`; normal package substitution of
+  `__COMPILED_VERSION_VARIABLE__` with `0.7.22`.
+- Official sing-box 1.14.2 linux-amd64-musl binary for the lab.
+- Official OpenWrt sing-box init script from openwrt/packages revision
+  `54d77dd5714bb4747c4bf061735304d18076de0b`, also byte-identical to the init script
+  in the public sing-box 1.13.21-r1 APK used for test-image preparation.
+
+The historical local r6 manifest pinned a different locally built sing-box init.
+Its SHA256 was `e2de58726303b6137bc3bb2f10516045bb29e61ec8f96de4709a21186445da60`.
+The standalone profile pins the official script SHA256
+`24670393ea740833b280925f38e4ee529364f4c22c29539ad26264da2337cfc5`.
+All ten Podkop implementation hashes match the public source byte-for-byte.
+Runtime algorithms, internal filenames, RPC/UCI interfaces and state schemas stay
+at r6. The package name and displayed product titles change for independent branding.
+
+A public build does not certify the home installation or an arbitrary device.
+The addon fails closed on incompatible files or a sing-box version mismatch.
+The lab's synthetic Podkop/sing-box APKs supply minimal dependency metadata;
+they are test artifacts and must never be installed on a router. The addon APK
+contains neither Podkop nor sing-box binaries or init scripts.
+
+Для production нужен отдельно подготовленный пакет sing-box 1.14.2 с указанным
+официальным init и необходимыми build tags. Обычный feed 25.12.5 с 1.13.21
+не подходит. Расширение не устанавливает и не заменяет зависимости скрыто.

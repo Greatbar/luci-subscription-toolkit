@@ -1,0 +1,16 @@
+{
+  "admin/services/podkop_tools": {
+    "title": "Subscription Toolkit: подписка и скорость",
+    "order": 43,
+    "action": { "type": "view", "path": "podkop-tools/dashboard" },
+    "depends": { "acl": ["luci-app-podkop-tools"] }
+  },
+  "admin/services/podkop_tools/dashboard": {
+    "title": "Серверы", "order": 1,
+    "action": { "type": "view", "path": "podkop-tools/dashboard" }
+  },
+  "admin/services/podkop_tools/settings": {
+    "title": "Настройки", "order": 2,
+    "action": { "type": "view", "path": "podkop-tools/settings" }
+  }
+}

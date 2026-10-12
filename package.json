@@ -1,0 +1,12 @@
+{
+  "name": "luci-subscription-toolkit-tests",
+  "version": "0.1.0",
+  "private": true,
+  "license": "GPL-2.0-only",
+  "scripts": {
+    "test": "node tests/podkop-tools/luci.cjs"
+  },
+  "devDependencies": {
+    "playwright": "1.58.2"
+  }
+}

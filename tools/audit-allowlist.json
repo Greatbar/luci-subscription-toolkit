@@ -1,0 +1,686 @@
+[
+  {
+    "file": "LICENSES/Playwright-Apache-2.0.txt",
+    "kind": "url",
+    "value_sha256": "cbfaf48bbd9bf087a88713613b9f6a7a5c07a5d97ab2fd624b469e9a191eef9a",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "LICENSES/Playwright-Apache-2.0.txt",
+    "kind": "url",
+    "value_sha256": "652ab88cd07a1b79431ac517e75a3a626e31a797fd58f5b21076de733ffb1121",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "Makefile",
+    "kind": "private_path",
+    "value_sha256": "b084b3c021122e74c613e9cb57afb27d3f8ce4e628213d4fdb714657b7b19e86",
+    "reason": "package root path or audit regex, not a private artifact"
+  },
+  {
+    "file": "THIRD_PARTY_NOTICES.md",
+    "kind": "url",
+    "value_sha256": "385ee653cf333a48cc9eb6d37e20495a2522b8100110ae1fc069f18c47f5102b",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "THIRD_PARTY_NOTICES.md",
+    "kind": "url",
+    "value_sha256": "e18b18b0611a967c7022d84b901e3effdad5f43f29b7a9403f8c85af22e1a6f0",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "THIRD_PARTY_NOTICES.md",
+    "kind": "url",
+    "value_sha256": "993fbcf66fd6e71d92cce2c5411c160d3f4f7a58208f8884155ef65594be56f7",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "THIRD_PARTY_NOTICES.md",
+    "kind": "url",
+    "value_sha256": "dbd45278f9dc61853e8dbe3d68262a746c79c6876f4649708183325adb485978",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "THIRD_PARTY_NOTICES.md",
+    "kind": "url",
+    "value_sha256": "8fc417bcc569a7ff45e8766b9f7810cb8ad1fc43f95c7d4b5687dc1bac754e57",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "THIRD_PARTY_NOTICES.md",
+    "kind": "url",
+    "value_sha256": "d44f96d0b232dcb12fcfddc70ec54353da7462407738ab11ab0df75a1509bd8b",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "THIRD_PARTY_NOTICES.md",
+    "kind": "url",
+    "value_sha256": "ce0ec284de3d430a6ad3c3dfeced297020fc3555fe396c97abd3f1ad41ae018f",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "THIRD_PARTY_NOTICES.md",
+    "kind": "url",
+    "value_sha256": "68920d455054c69033f9cdb980a41bb9d75029fc63a4ea85c78e0ad0d5df6176",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "THIRD_PARTY_NOTICES.md",
+    "kind": "url",
+    "value_sha256": "9d70323e57bb41276655c91b2aa8be74f0e833f676c7f9bb41d8fa2cf78c20f9",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "docs/WORK_LOG.md",
+    "kind": "private_path",
+    "value_sha256": "9dfca6f8599e63304378b9948e7dbba79fd3a1a040932bfbdea694fea95a903a",
+    "reason": "historical dependency mentioned as removed; not an included private path"
+  },
+  {
+    "file": "docs/provenance-comparison.json",
+    "kind": "url",
+    "value_sha256": "a964e6125e344a854b72979c0571c0dc92e51a758dcb1b40c881eee5aed2e9ab",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "docs/provenance-comparison.json",
+    "kind": "url",
+    "value_sha256": "6d36de9d324805719965f2ba80b0ce952069588fef9b72bcda5e733745f8603d",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "docs/provenance-comparison.json",
+    "kind": "url",
+    "value_sha256": "9c0e03c102e235bcacd60a48cf307462af8b836d67d4c7de58f356a807282cb1",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "docs/provenance-comparison.json",
+    "kind": "url",
+    "value_sha256": "cd28a9cb761ad62d41dc88c96100577f342e6d03956648c3a301eb38eac2fc60",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "htdocs/luci-static/resources/view/podkop-tools/settings.js",
+    "kind": "url",
+    "value_sha256": "f4ddf449c1152027ea8767b16f066df71f9259da0e69857599b33ef52713b313",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "package-lock.json",
+    "kind": "url",
+    "value_sha256": "db35a3702fb3dd13ef29fc76fa71dcb2bd32927f90e4f67f8ce276178fc11c44",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "package-lock.json",
+    "kind": "url",
+    "value_sha256": "3e68ffb8880e63f90e2eb5a09fd02117bce53db28718cfbf9936e7d4cee45b20",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "package-lock.json",
+    "kind": "url",
+    "value_sha256": "4934e2984159c5ef1ea9c7b93bb9aff453290f18cf31307c333e0294edf6f22e",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "root/etc/config/podkop_tools",
+    "kind": "ipv4",
+    "value_sha256": "7506767b4a9e79aadd6899c729e440268de89885bc61855d7a21760222f0e54f",
+    "reason": "public default, wildcard/loopback or reserved documentation address"
+  },
+  {
+    "file": "root/etc/config/podkop_tools",
+    "kind": "url",
+    "value_sha256": "9db3ec07b794b6af951f072a4a884aa366891b03c5a942a4cd0e7ff88ba484cf",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "root/etc/config/podkop_tools",
+    "kind": "url",
+    "value_sha256": "15494de2d35325a8c89d72d55719a909aa12561bbc97f01ec238e2880f84eea6",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "root/etc/config/podkop_tools",
+    "kind": "url",
+    "value_sha256": "f4ddf449c1152027ea8767b16f066df71f9259da0e69857599b33ef52713b313",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "root/usr/libexec/podkop-tools/backend.uc",
+    "kind": "ipv4",
+    "value_sha256": "19e36255972107d42b8cecb77ef5622e842e8a50778a6ed8dd1ce94732daca9e",
+    "reason": "public default, wildcard/loopback or reserved documentation address"
+  },
+  {
+    "file": "root/usr/libexec/podkop-tools/backend.uc",
+    "kind": "ipv4",
+    "value_sha256": "12ca17b49af2289436f303e0166030a21e525d266e209267433801a8fd4071a0",
+    "reason": "public default, wildcard/loopback or reserved documentation address"
+  },
+  {
+    "file": "root/usr/libexec/podkop-tools/backend.uc",
+    "kind": "ipv4",
+    "value_sha256": "7506767b4a9e79aadd6899c729e440268de89885bc61855d7a21760222f0e54f",
+    "reason": "public default, wildcard/loopback or reserved documentation address"
+  },
+  {
+    "file": "root/usr/libexec/podkop-tools/backend.uc",
+    "kind": "url",
+    "value_sha256": "d5ed0ecb2b33635dedac36912486cdff6bacb8c1af63dce1f46cef718f2c8d8b",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "root/usr/libexec/podkop-tools/backend.uc",
+    "kind": "url",
+    "value_sha256": "9db3ec07b794b6af951f072a4a884aa366891b03c5a942a4cd0e7ff88ba484cf",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "root/usr/libexec/podkop-tools/backend.uc",
+    "kind": "ipv4",
+    "value_sha256": "c2ca34c98f307327e49f119963ab08b011e72a48a269b2f0db3f7dd617745204",
+    "reason": "public default, wildcard/loopback or reserved documentation address"
+  },
+  {
+    "file": "root/usr/libexec/podkop-tools/backend.uc",
+    "kind": "hostname_literal",
+    "value_sha256": "8c1b98195fc5175ada57260b51c998b810a4a27501992b3d0babe1a07c17ae47",
+    "reason": "public service name or reserved synthetic domain"
+  },
+  {
+    "file": "root/usr/libexec/podkop-tools/backend.uc",
+    "kind": "url",
+    "value_sha256": "15494de2d35325a8c89d72d55719a909aa12561bbc97f01ec238e2880f84eea6",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "root/usr/libexec/podkop-tools/backend.uc",
+    "kind": "url",
+    "value_sha256": "f4ddf449c1152027ea8767b16f066df71f9259da0e69857599b33ef52713b313",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "root/usr/share/subscription-toolkit/THIRD_PARTY_NOTICES.md",
+    "kind": "url",
+    "value_sha256": "385ee653cf333a48cc9eb6d37e20495a2522b8100110ae1fc069f18c47f5102b",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "root/usr/share/subscription-toolkit/THIRD_PARTY_NOTICES.md",
+    "kind": "url",
+    "value_sha256": "e18b18b0611a967c7022d84b901e3effdad5f43f29b7a9403f8c85af22e1a6f0",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "root/usr/share/subscription-toolkit/THIRD_PARTY_NOTICES.md",
+    "kind": "url",
+    "value_sha256": "993fbcf66fd6e71d92cce2c5411c160d3f4f7a58208f8884155ef65594be56f7",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "root/usr/share/subscription-toolkit/THIRD_PARTY_NOTICES.md",
+    "kind": "url",
+    "value_sha256": "dbd45278f9dc61853e8dbe3d68262a746c79c6876f4649708183325adb485978",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "root/usr/share/subscription-toolkit/THIRD_PARTY_NOTICES.md",
+    "kind": "url",
+    "value_sha256": "8fc417bcc569a7ff45e8766b9f7810cb8ad1fc43f95c7d4b5687dc1bac754e57",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "root/usr/share/subscription-toolkit/THIRD_PARTY_NOTICES.md",
+    "kind": "url",
+    "value_sha256": "d44f96d0b232dcb12fcfddc70ec54353da7462407738ab11ab0df75a1509bd8b",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "root/usr/share/subscription-toolkit/THIRD_PARTY_NOTICES.md",
+    "kind": "url",
+    "value_sha256": "ce0ec284de3d430a6ad3c3dfeced297020fc3555fe396c97abd3f1ad41ae018f",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "root/usr/share/subscription-toolkit/THIRD_PARTY_NOTICES.md",
+    "kind": "url",
+    "value_sha256": "68920d455054c69033f9cdb980a41bb9d75029fc63a4ea85c78e0ad0d5df6176",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "root/usr/share/subscription-toolkit/THIRD_PARTY_NOTICES.md",
+    "kind": "url",
+    "value_sha256": "9d70323e57bb41276655c91b2aa8be74f0e833f676c7f9bb41d8fa2cf78c20f9",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tests/fixtures/outbounds.json",
+    "kind": "hostname_literal",
+    "value_sha256": "8243714e12690caafee7816aa039cb7f35345218b15a2338189c57c913edacc1",
+    "reason": "public service name or reserved synthetic domain"
+  },
+  {
+    "file": "tests/fixtures/outbounds.json",
+    "kind": "uuid",
+    "value_sha256": "11e594f481958c10e3015d0bf0447a22f068a8a647f475df15ce2c7ab4b8f3f1",
+    "reason": "deliberately synthetic fixture UUID"
+  },
+  {
+    "file": "tests/fixtures/provider.json",
+    "kind": "hostname_literal",
+    "value_sha256": "8243714e12690caafee7816aa039cb7f35345218b15a2338189c57c913edacc1",
+    "reason": "public service name or reserved synthetic domain"
+  },
+  {
+    "file": "tests/fixtures/provider.json",
+    "kind": "uuid",
+    "value_sha256": "11e594f481958c10e3015d0bf0447a22f068a8a647f475df15ce2c7ab4b8f3f1",
+    "reason": "deliberately synthetic fixture UUID"
+  },
+  {
+    "file": "tests/podkop-tools/browser.cjs",
+    "kind": "url",
+    "value_sha256": "b9d32f7162805140c069fed46891efc4b2ad21ac8057684cb716f69affeb2e61",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tests/podkop-tools/integration.py",
+    "kind": "uuid",
+    "value_sha256": "11e594f481958c10e3015d0bf0447a22f068a8a647f475df15ce2c7ab4b8f3f1",
+    "reason": "deliberately synthetic fixture UUID"
+  },
+  {
+    "file": "tests/podkop-tools/integration.py",
+    "kind": "credential_literal",
+    "value_sha256": "4cefa9fa6c7bca5a8f10c5dbba3cd3ad49c6ee3e2ba9e0ea25f8a0f4739e34b3",
+    "reason": "synthetic fixture value or code expression, never provider data"
+  },
+  {
+    "file": "tests/podkop-tools/integration.py",
+    "kind": "credential_literal",
+    "value_sha256": "1310147577770520d3fbabed45f96b62fd840b704e1ec578c7caa33907280e3c",
+    "reason": "synthetic fixture value or code expression, never provider data"
+  },
+  {
+    "file": "tests/podkop-tools/integration.py",
+    "kind": "ipv4",
+    "value_sha256": "12ca17b49af2289436f303e0166030a21e525d266e209267433801a8fd4071a0",
+    "reason": "public default, wildcard/loopback or reserved documentation address"
+  },
+  {
+    "file": "tests/podkop-tools/integration.py",
+    "kind": "ipv4",
+    "value_sha256": "19e36255972107d42b8cecb77ef5622e842e8a50778a6ed8dd1ce94732daca9e",
+    "reason": "public default, wildcard/loopback or reserved documentation address"
+  },
+  {
+    "file": "tests/podkop-tools/integration.py",
+    "kind": "ipv4",
+    "value_sha256": "1edd62868f2767a1fff68df0a4cb3c23448e45100715768db9310b5e719536a1",
+    "reason": "loopback-only synthetic proxy source address"
+  },
+  {
+    "file": "tests/podkop-tools/integration.py",
+    "kind": "url",
+    "value_sha256": "f4ddf449c1152027ea8767b16f066df71f9259da0e69857599b33ef52713b313",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tests/podkop-tools/integration.py",
+    "kind": "url",
+    "value_sha256": "7865ed401ca5cadb8c84ce7825551cfb64c5647d1190941b453fbc4906b13847",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tests/podkop-tools/integration.py",
+    "kind": "ipv4",
+    "value_sha256": "631f08140b24b7274d12df3c37a1a80ce5876dafd7007d772e0114fddf88b682",
+    "reason": "public default, wildcard/loopback or reserved documentation address"
+  },
+  {
+    "file": "tests/podkop-tools/integration.py",
+    "kind": "hostname_literal",
+    "value_sha256": "c6240ca88eed5b237451d4ceab51a5df1e8bc3b0a4a0e099fbe4b9f0d5cf23a2",
+    "reason": "public service name or reserved synthetic domain"
+  },
+  {
+    "file": "tests/podkop-tools/integration.py",
+    "kind": "ipv4",
+    "value_sha256": "c2ca34c98f307327e49f119963ab08b011e72a48a269b2f0db3f7dd617745204",
+    "reason": "public default, wildcard/loopback or reserved documentation address"
+  },
+  {
+    "file": "tests/podkop-tools/integration.py",
+    "kind": "url",
+    "value_sha256": "29aaaded67261cc6cbf88fc74b4bced6c873688db8612e45ecece46d4edcf047",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tests/podkop-tools/integration.py",
+    "kind": "url",
+    "value_sha256": "9ef3e779a1c0e95ffe7ded4ca8123bf9ff33b547921ea4857b8069d74035ae60",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tests/podkop-tools/integration.py",
+    "kind": "credential_literal",
+    "value_sha256": "763f508932833a223ff57a66f69eb40b86c3b0e1ff69eab23e78536515c26a02",
+    "reason": "synthetic fixture value or code expression, never provider data"
+  },
+  {
+    "file": "tests/podkop-tools/integration.py",
+    "kind": "url",
+    "value_sha256": "6df2d439ad636934034ceac4139ee8da19ae3e0ebc682bf02203fe4e2f415352",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tests/podkop-tools/luci.cjs",
+    "kind": "url",
+    "value_sha256": "2de054a6d044d85a555ba9209182f4ecad9468a9c33ad964c69b19e07410ced9",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tests/podkop-tools/luci.cjs",
+    "kind": "url",
+    "value_sha256": "0540d9d320df0bf4242f2e982c4720942484f3fedec1f9d77a0c504da59a630a",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tests/podkop-tools/luci.cjs",
+    "kind": "url",
+    "value_sha256": "3f6d59890b591981b79e7a80577c50021569512172b41abd0be5a6b6a950bc0c",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tests/podkop-tools/model.uc",
+    "kind": "credential_literal",
+    "value_sha256": "a62c2d5a12d0110fbe21aee9805b5c3516b92d1db437ea307b5a5a4f6f53014e",
+    "reason": "synthetic fixture value or code expression, never provider data"
+  },
+  {
+    "file": "tests/podkop-tools/model.uc",
+    "kind": "hostname_literal",
+    "value_sha256": "b8e7453371a024daae06f3164492c0afcde134c7747c155b3d83c20de341e855",
+    "reason": "public service name or reserved synthetic domain"
+  },
+  {
+    "file": "tests/podkop-tools/model.uc",
+    "kind": "credential_literal",
+    "value_sha256": "da902af658cd28e8608211c37e6e6a636368db319560ff14ef31247969394181",
+    "reason": "synthetic fixture value or code expression, never provider data"
+  },
+  {
+    "file": "tests/podkop-tools/model.uc",
+    "kind": "hostname_literal",
+    "value_sha256": "e8d39256ad2eb523741a6cecf390d3a0d0048250e14424a1b5cc458de18d49d3",
+    "reason": "public service name or reserved synthetic domain"
+  },
+  {
+    "file": "tests/podkop-tools/model.uc",
+    "kind": "credential_literal",
+    "value_sha256": "ac572ba5aecc9913a8fc182a8854ab1e21d23deeca07f091580543e254b87296",
+    "reason": "synthetic fixture value or code expression, never provider data"
+  },
+  {
+    "file": "tests/podkop-tools/model.uc",
+    "kind": "hostname_literal",
+    "value_sha256": "3e3cc36e523f93e8ea5d602a825a6912a0e241db666d4a5519967881155d5ed3",
+    "reason": "public service name or reserved synthetic domain"
+  },
+  {
+    "file": "tests/podkop-tools/model.uc",
+    "kind": "hostname_literal",
+    "value_sha256": "4b088fe5e3fecda60a42ac48cb0aff0b0ad5abf66521207a853a8d9ba2662e60",
+    "reason": "public service name or reserved synthetic domain"
+  },
+  {
+    "file": "tests/podkop-tools/model.uc",
+    "kind": "uuid",
+    "value_sha256": "11e594f481958c10e3015d0bf0447a22f068a8a647f475df15ce2c7ab4b8f3f1",
+    "reason": "deliberately synthetic fixture UUID"
+  },
+  {
+    "file": "tests/podkop-tools/ownership.py",
+    "kind": "ipv4",
+    "value_sha256": "12ca17b49af2289436f303e0166030a21e525d266e209267433801a8fd4071a0",
+    "reason": "public default, wildcard/loopback or reserved documentation address"
+  },
+  {
+    "file": "tests/podkop-tools/ownership.py",
+    "kind": "hostname_literal",
+    "value_sha256": "81f27f6f3f26c361ebe41e9cc55319579dfd7d2257d35cd5228be330f8810e68",
+    "reason": "public service name or reserved synthetic domain"
+  },
+  {
+    "file": "tests/podkop-tools/ownership.py",
+    "kind": "hostname_literal",
+    "value_sha256": "1b10087c2c3ca295186d703d24ae692d38b211fbf9529f72836b5516f2f558e8",
+    "reason": "public service name or reserved synthetic domain"
+  },
+  {
+    "file": "tests/podkop-tools/ownership.py",
+    "kind": "hostname_literal",
+    "value_sha256": "8f0ed5eea94135ffa6647cdf40eb88d4820758009a8cd4f57d9246305220f2c2",
+    "reason": "public service name or reserved synthetic domain"
+  },
+  {
+    "file": "tests/podkop-tools/ownership.py",
+    "kind": "hostname_literal",
+    "value_sha256": "421a419d49b5f35a03d61a522be99f4e55de6ce78530bd52e455a369badad710",
+    "reason": "public service name or reserved synthetic domain"
+  },
+  {
+    "file": "tests/podkop-tools/ownership.py",
+    "kind": "hostname_literal",
+    "value_sha256": "0c4a32bcd79e72eec6bc4f066fd8cbd12da032a22eb4155a28b20e4189ec0aaf",
+    "reason": "public service name or reserved synthetic domain"
+  },
+  {
+    "file": "tests/podkop-tools/ownership.py",
+    "kind": "hostname_literal",
+    "value_sha256": "b9722fe854470b7bfcfac2f7786dc543802def39d0cc17d89dcac699bf2ddaa6",
+    "reason": "public service name or reserved synthetic domain"
+  },
+  {
+    "file": "tests/podkop-tools/service.uc",
+    "kind": "url",
+    "value_sha256": "f4ddf449c1152027ea8767b16f066df71f9259da0e69857599b33ef52713b313",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tests/run.py",
+    "kind": "ipv4",
+    "value_sha256": "12ca17b49af2289436f303e0166030a21e525d266e209267433801a8fd4071a0",
+    "reason": "public default, wildcard/loopback or reserved documentation address"
+  },
+  {
+    "file": "tests/run.py",
+    "kind": "private_path",
+    "value_sha256": "a034e329f12b614a3731e9ea1aeec591e538293a7b9fb5b1dab128219211f8c0",
+    "reason": "container path to the mounted public test driver"
+  },
+  {
+    "file": "tests/run.py",
+    "kind": "url",
+    "value_sha256": "e79d0b65276c07c71c85449933f964fb160753a704d54eada6f7bd682b7b27da",
+    "reason": "loopback-only browser fixture URL inside the isolated namespace"
+  },
+  {
+    "file": "tools/audit.py",
+    "kind": "private_path",
+    "value_sha256": "d9a23b92a028d7f036f5caecb42b1e84528c4b3601720c150a926d0333991785",
+    "reason": "package root path or audit regex, not a private artifact"
+  },
+  {
+    "file": "tools/audit.py",
+    "kind": "private_path",
+    "value_sha256": "aff4104e254884c08f513c3808645fa60ffd877f35779f13830192f76664e4bf",
+    "reason": "package root path or audit regex, not a private artifact"
+  },
+  {
+    "file": "tools/audit.py",
+    "kind": "private_path",
+    "value_sha256": "feab5cedfee25c6ca86096536bf81a9b0af31ffca9dc86d4311143e5285d84d9",
+    "reason": "package root path or audit regex, not a private artifact"
+  },
+  {
+    "file": "tools/audit.py",
+    "kind": "private_path",
+    "value_sha256": "06df181485b2ba2409c84351c0eecff20a8e3f17728e51521c537b4a14d54b90",
+    "reason": "package root path or audit regex, not a private artifact"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "d7a339f2fcdb0f2ab4d9d9c975d161e9cd45d96a2dc5093b088c735d334512fb",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "0514c077067f7d5185b4bd3acffe81e07776a35c02a01400880e5357b6c5232e",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "d0dec68812a282adcdbddb42bafcc1f4812ca339e2a10aea3c4208e483052a1b",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "9e71d0662075f14710c52fc4268f7abe185be458faaf0d6cf89aa3b4e7c521db",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "73cf947dd691407536b0e9dbfdb5f1a95666bf103a8b91a4396e69c139fe3bfd",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "b6816f742eac3e03795ed2c6e7e4b0c67eaeeb762d75574e97f84dd9e506e292",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "774a3e4ae46919d5a2f9da98da96834b15183da9f0c79be7a626988aad670b0d",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "fad3ec7d053a6c4a9fb43725b45a0d4db2109f6694ee59fbf5b3be65fcd758c3",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "5e6c8d5772f011243b6252d6218d13655f5309087e0a846428a644f0cbb97fd0",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "4642a73c0a022a7e8ce4c9ba3931cb11697df75485164e1f3316664984fabebc",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "6a639ea3a481d374fb9e29d237e9494d04f831318317de334ac2c2c4410e0fd3",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "d2b1bd4838d94f27123f0032c34795f1138962d68066ea4795f571b1a1699f32",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "15c4cb36b03ec104c9aaadf39b750e636b35b385b7cbd1919e75d9acb0a85fa0",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "1200bd38af041ec705edfa21285f7433c6d27e365a9f8e02b4b1667689c003fe",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "e0df66f35da347920664a8fad5f2d7d15ec663f8f8be22a4daeb0aa7abba246e",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "36feb1ded6e30006f5f08b7a11ae09a066f0837eacea9675283032677a169ebd",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "f9811e4193aaa6b50bfc8a0e4dc9b9c2e47dca94d07b551c10f6fed92e828095",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "67a0aebf14fcebb47cc625803025eb64df6d706f8c75b0523875b515666cceb9",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "0a1aa5df4723892d02c180cba5b388f98a6dd36a04e19340f9ce3625ee464e02",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "3b252a36774657145d3082a57b393fd040bd1485016a3180d9ec9fbf212bcb68",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "a9613b77da86409c176800eeaa72eadb92b9e20f911260604ce94664fd8d5526",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "af197b96d684caefa7488c2af1e78aff6c22efbf54cc91aeb947e0d0bb86ed2a",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "719ca41d271ad6dadeec371ef7881c9bb61cbadd02ec4b5e37f7e87d16cc49a8",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "598632e394073ac0ceb47720ac1e8c46c8dbcebfca8355adcf9b3496f46bd4b4",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "daf7a10019265742773db9396b7581a8ae56f4791944ee0b4a5a063b1210f78d",
+    "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  }
+]

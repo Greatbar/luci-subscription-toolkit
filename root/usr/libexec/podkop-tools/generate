@@ -1,0 +1,19 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+set -e
+job=/tmp/podkop-tools/job
+# Source the hash-verified installed implementation, stopping before its CLI.
+awk '/^case "\$1" in/ {exit} {print}' /usr/bin/podkop > "$job/functions.sh"
+(
+    . "$job/functions.sh"
+    # /lib/config/uci.sh resets this variable when sourced. Set it AFTER imports.
+    UCI_CONFIG_DIR="$job/uci"
+    config_load podkop
+    config_get config_path settings config_path
+    [ "$config_path" = "$job/generated.json" ]
+    [ "$CONFIG_SECTIONS" = 'settings main' ]
+    TMP_RULESET_FOLDER="$job/rulesets"
+    rm -f "$TMP_RULESET_FOLDER"/*
+    sing_box_init_config
+) >/dev/null 2>&1
+test -s "$job/generated.json"

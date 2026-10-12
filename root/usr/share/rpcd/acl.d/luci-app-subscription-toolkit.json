@@ -1,0 +1,33 @@
+{
+  "luci-app-podkop-tools": {
+    "description": "Manage Podkop subscription and bounded per-server tests",
+    "read": {
+      "uci": [
+        "podkop_tools"
+      ],
+      "ubus": {
+        "podkop-tools": [
+          "status"
+        ]
+      }
+    },
+    "write": {
+      "uci": [
+        "podkop_tools"
+      ],
+      "ubus": {
+        "podkop-tools": [
+          "seed",
+          "fetch",
+          "apply",
+          "select",
+          "speed",
+          "latency",
+          "service",
+          "schedule",
+          "source"
+        ]
+      }
+    }
+  }
+}

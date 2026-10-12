@@ -1,0 +1,90 @@
+[
+  {
+    "url": "https://github.com/itdoginfo/podkop/pull/325.diff",
+    "download_sha256": "58ea664472512c101fb3469d6a20e7dad21a2c23f27a897ad4f8ad6b5ff412ee",
+    "comparison": [
+      {
+        "file": "root/usr/libexec/podkop-tools/model.uc",
+        "longest_equal_line_block": 2
+      },
+      {
+        "file": "root/usr/libexec/podkop-tools/backend.uc",
+        "longest_equal_line_block": 2
+      },
+      {
+        "file": "htdocs/luci-static/resources/view/podkop-tools/settings.js",
+        "longest_equal_line_block": 1
+      },
+      {
+        "file": "htdocs/luci-static/resources/view/podkop-tools/dashboard.js",
+        "longest_equal_line_block": 2
+      }
+    ]
+  },
+  {
+    "url": "https://github.com/itdoginfo/podkop/pull/388.diff",
+    "download_sha256": "e5aa4b473075f177a50897475f43f4311c36162002e08b66e825a08b71d30233",
+    "comparison": [
+      {
+        "file": "root/usr/libexec/podkop-tools/model.uc",
+        "longest_equal_line_block": 2
+      },
+      {
+        "file": "root/usr/libexec/podkop-tools/backend.uc",
+        "longest_equal_line_block": 2
+      },
+      {
+        "file": "htdocs/luci-static/resources/view/podkop-tools/settings.js",
+        "longest_equal_line_block": 1
+      },
+      {
+        "file": "htdocs/luci-static/resources/view/podkop-tools/dashboard.js",
+        "longest_equal_line_block": 2
+      }
+    ]
+  },
+  {
+    "url": "https://github.com/itdoginfo/podkop/pull/445.diff",
+    "download_sha256": "61a74127614882dbe39358718712221cacd2e2f548dcaf256bb59f12fb8ddde6",
+    "comparison": [
+      {
+        "file": "root/usr/libexec/podkop-tools/model.uc",
+        "longest_equal_line_block": 2
+      },
+      {
+        "file": "root/usr/libexec/podkop-tools/backend.uc",
+        "longest_equal_line_block": 2
+      },
+      {
+        "file": "htdocs/luci-static/resources/view/podkop-tools/settings.js",
+        "longest_equal_line_block": 1
+      },
+      {
+        "file": "htdocs/luci-static/resources/view/podkop-tools/dashboard.js",
+        "longest_equal_line_block": 2
+      }
+    ]
+  },
+  {
+    "url": "https://github.com/SagerNet/sing-box/pull/4398.diff",
+    "download_sha256": "cc2ecb1b36ca56f125a777fa7cfb90521f9a5b971793973f23b2b68561e173f1",
+    "comparison": [
+      {
+        "file": "root/usr/libexec/podkop-tools/model.uc",
+        "longest_equal_line_block": 2
+      },
+      {
+        "file": "root/usr/libexec/podkop-tools/backend.uc",
+        "longest_equal_line_block": 2
+      },
+      {
+        "file": "htdocs/luci-static/resources/view/podkop-tools/settings.js",
+        "longest_equal_line_block": 1
+      },
+      {
+        "file": "htdocs/luci-static/resources/view/podkop-tools/dashboard.js",
+        "longest_equal_line_block": 2
+      }
+    ]
+  }
+]

@@ -1,0 +1,11 @@
+57f734dd1d313c71173483d928b82f62bcdebe2e0630c14f0eac6d7290501082  /usr/bin/podkop
+d1b5798a5b3c4e680f9650368afd7e822f22bc8139dda66de53dc46fad140e1d  /usr/lib/podkop/constants.sh
+e1f9a431adc6de14793323eb26303b64380f93c0eda73441261448e74c8940a4  /usr/lib/podkop/helpers.jq
+38506a3402440206c8d9cbefea31c7da0907580309b392f4832af5f5ecc7a2ea  /usr/lib/podkop/helpers.sh
+275d2d0564b3564e1cfa716a759182e1e8dbd47c83d13c473f06c2b153bfbfeb  /usr/lib/podkop/logging.sh
+960a60628ed0d61bf9d59f1fb9334e72d7baecd3b460c65fe26970227fb5ecf2  /usr/lib/podkop/nft.sh
+aa9ffcc84ff315c2e2547b047f19247ef097cea8a33c2539b997b3964c65b74e  /usr/lib/podkop/rulesets.sh
+7e4b2e4c281672d6af133b4be74099dde77251429963bca92fabc62b4292212c  /usr/lib/podkop/sing_box_config_facade.sh
+47543a47e70893e65692e04294853c9d959ed9335ed43b220e615085306cf45b  /usr/lib/podkop/sing_box_config_manager.sh
+81398850e3481bc6c75f10cc2885529d36b49b0c91c32caf57f54467cbc8cbc2  /etc/init.d/podkop
+24670393ea740833b280925f38e4ee529364f4c22c29539ad26264da2337cfc5  /etc/init.d/sing-box

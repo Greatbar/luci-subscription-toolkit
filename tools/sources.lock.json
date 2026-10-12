@@ -1,0 +1,139 @@
+{
+  "imagebuilder": {
+    "url": "https://downloads.openwrt.org/releases/25.12.5/targets/x86/64/openwrt-imagebuilder-25.12.5-x86-64.Linux-x86_64.tar.zst",
+    "sha256": "313221253d9bac534e4a4ee6492a4941b4ba0f43200eceb8d16a4785470ae9df",
+    "file": "imagebuilder.tar.zst"
+  },
+  "rootfs": {
+    "url": "https://downloads.openwrt.org/releases/25.12.5/targets/x86/64/openwrt-25.12.5-x86-64-rootfs.tar.gz",
+    "sha256": "2dae4250b1b742062ed5787adcdc9dd6d26c7f69f94ced46548eb512d5957e8a",
+    "file": "rootfs.tar.gz"
+  },
+  "podkop": {
+    "url": "https://codeload.github.com/itdoginfo/podkop/tar.gz/refs/tags/0.7.22",
+    "sha256": "f3ff4ef62c03565acb65a21f621cacddd432c647ec4d978ccffe0d26fc59a371",
+    "revision": "c0a2736bb95884c19fedf638345ed6148c5fd6af",
+    "file": "podkop.tar.gz"
+  },
+  "sing-box": {
+    "url": "https://github.com/SagerNet/sing-box/releases/download/v1.14.2/sing-box-1.14.2-linux-amd64-musl.tar.gz",
+    "sha256": "8f6cb4bcf94d2b33c65d52e0d5b142db29a938336f1ff7267f397ac3758fc297",
+    "file": "sing-box.tar.gz"
+  },
+  "sing-box-init": {
+    "url": "https://raw.githubusercontent.com/openwrt/packages/54d77dd5714bb4747c4bf061735304d18076de0b/net/sing-box/files/sing-box.init",
+    "sha256": "24670393ea740833b280925f38e4ee529364f4c22c29539ad26264da2337cfc5",
+    "file": "sing-box.init"
+  },
+  "lab_dependencies": {
+    "packages": [
+      {
+        "file": "lab-deps/bind-dig-9.20.29-r1.apk",
+        "url": "https://downloads.openwrt.org/releases/25.12.5/packages/x86_64/packages/bind-dig-9.20.29-r1.apk",
+        "sha256": "9ab552c59da0dc2b11c249b740b4f8bce3f4719228b7778a783de39d29c62c52"
+      },
+      {
+        "file": "lab-deps/bind-libs-9.20.29-r1.apk",
+        "url": "https://downloads.openwrt.org/releases/25.12.5/packages/x86_64/packages/bind-libs-9.20.29-r1.apk",
+        "sha256": "1338920d0bb1a4acd74c0e084cd975308b148522242d15b43ecaac582cc07152"
+      },
+      {
+        "file": "lab-deps/coreutils-9.9-r2.apk",
+        "url": "https://downloads.openwrt.org/releases/25.12.5/packages/x86_64/packages/coreutils-9.9-r2.apk",
+        "sha256": "fe275266eb3d917162986bad82d2d74bc3763db9f497a584b77215e40e53f158"
+      },
+      {
+        "file": "lab-deps/coreutils-nohup-9.9-r2.apk",
+        "url": "https://downloads.openwrt.org/releases/25.12.5/packages/x86_64/packages/coreutils-nohup-9.9-r2.apk",
+        "sha256": "cbb6bbf51391895489796666f7005bb07f25af495ad77837ade00846c6f4cb3e"
+      },
+      {
+        "file": "lab-deps/coreutils-timeout-9.9-r2.apk",
+        "url": "https://downloads.openwrt.org/releases/25.12.5/packages/x86_64/packages/coreutils-timeout-9.9-r2.apk",
+        "sha256": "5a9d7cbff353150164ba6e61457b65c699c5f94a62c3eb48606a6b4c6abf7257"
+      },
+      {
+        "file": "lab-deps/curl-8.22.0-r1.apk",
+        "url": "https://downloads.openwrt.org/releases/25.12.5/packages/x86_64/packages/curl-8.22.0-r1.apk",
+        "sha256": "a5e0d63d721ccc570eeb1e9962b63b7898a610eacddf1f1a95be0e67139e7c5c"
+      },
+      {
+        "file": "lab-deps/jq-1.8.1-r2.apk",
+        "url": "https://downloads.openwrt.org/releases/25.12.5/packages/x86_64/packages/jq-1.8.1-r2.apk",
+        "sha256": "22bfc1d4252912c0f4f5682e9dbbcfa084394281802b47816dfc3a122eb463a1"
+      },
+      {
+        "file": "lab-deps/kmod-inet-diag-6.12.94-r1.apk",
+        "url": "https://downloads.openwrt.org/releases/25.12.5/targets/x86/64/kmods/6.12.94-1-a7bc15f451f9652701ba04af9cfb0b95/kmod-inet-diag-6.12.94-r1.apk",
+        "sha256": "97526a8b062499185f024a5f9f16d49af688a4c97c010421fcc7663dfa9a321b"
+      },
+      {
+        "file": "lab-deps/kmod-tun-6.12.94-r1.apk",
+        "url": "https://downloads.openwrt.org/releases/25.12.5/targets/x86/64/kmods/6.12.94-1-a7bc15f451f9652701ba04af9cfb0b95/kmod-tun-6.12.94-r1.apk",
+        "sha256": "5c2c0bb48ba096334c139615db8470e51a5247c63ef747f3297a637b8f286d1b"
+      },
+      {
+        "file": "lab-deps/libatomic1-14.3.0-r5.apk",
+        "url": "https://downloads.openwrt.org/releases/25.12.5/targets/x86/64/packages/libatomic1-14.3.0-r5.apk",
+        "sha256": "7ba4a3b3292079f752acd49ab0eb2b5c44ab535e9565a01cee75a87f3ef95c6f"
+      },
+      {
+        "file": "lab-deps/libcurl4-8.22.0-r1.apk",
+        "url": "https://downloads.openwrt.org/releases/25.12.5/packages/x86_64/packages/libcurl4-8.22.0-r1.apk",
+        "sha256": "cba344bc492384f1f86eab21e1ebb44d411ac2b687763c95c91c5477ead679d9"
+      },
+      {
+        "file": "lab-deps/libnghttp2-14-1.70.0-r1.apk",
+        "url": "https://downloads.openwrt.org/releases/25.12.5/packages/x86_64/packages/libnghttp2-14-1.70.0-r1.apk",
+        "sha256": "0c371f2c43466b07dd3a5c27a53a80f2be02489350dded970a567ef083035825"
+      },
+      {
+        "file": "lab-deps/libopenssl-conf-3.5.9-r1.apk",
+        "url": "https://downloads.openwrt.org/releases/25.12.5/packages/x86_64/base/libopenssl-conf-3.5.9-r1.apk",
+        "sha256": "d97dec1fd2eb9cddd5281989ccb8708c7c1de557d625aad39b5af3ebfd9d86d9"
+      },
+      {
+        "file": "lab-deps/libopenssl3-3.5.9-r1.apk",
+        "url": "https://downloads.openwrt.org/releases/25.12.5/packages/x86_64/base/libopenssl3-3.5.9-r1.apk",
+        "sha256": "ff420161f0092f8bba682b76fe626a0d0d19bbf6811ca5c590b287e2670279cb"
+      },
+      {
+        "file": "lab-deps/liburcu-0.15.5-r1.apk",
+        "url": "https://downloads.openwrt.org/releases/25.12.5/packages/x86_64/packages/liburcu-0.15.5-r1.apk",
+        "sha256": "c4f4485b8c5dedd7248aa2ca5dd869943f505185edbe23877bff43bf376820dc"
+      },
+      {
+        "file": "lab-deps/libuv1-1.48.0-r1.apk",
+        "url": "https://downloads.openwrt.org/releases/25.12.5/packages/x86_64/packages/libuv1-1.48.0-r1.apk",
+        "sha256": "572874b9398288a66b6e95fc511cd310d30dfba60f37dfb3db102c21d8a69e94"
+      },
+      {
+        "file": "lab-deps/openssl-util-3.5.9-r1.apk",
+        "url": "https://downloads.openwrt.org/releases/25.12.5/packages/x86_64/base/openssl-util-3.5.9-r1.apk",
+        "sha256": "f975772e376ce05c46efbc4f4f2bee1575109454cb928333b65010dd526b1783"
+      },
+      {
+        "file": "lab-deps/sing-box-1.13.21-r1.apk",
+        "url": "https://downloads.openwrt.org/releases/25.12.5/packages/x86_64/packages/sing-box-1.13.21-r1.apk",
+        "sha256": "8aabd75aca148d47d8da7063f3fda88757fb2f37ba55dce5d75bac1d16c4f4db"
+      },
+      {
+        "file": "lab-deps/coreutils-base64-9.9-r2.apk",
+        "url": "https://downloads.openwrt.org/releases/25.12.5/packages/x86_64/packages/coreutils-base64-9.9-r2.apk",
+        "sha256": "5f8e6073e8074515830789aff5adb5601447468b62643016fd277ec3dd7e16f4"
+      }
+    ]
+  },
+  "gitleaks": {
+    "url": "https://github.com/gitleaks/gitleaks/releases/download/v8.24.3/gitleaks_8.24.3_linux_x64.tar.gz",
+    "sha256": "9991e0b2903da4c8f6122b5c3186448b927a5da4deef1fe45271c3793f4ee29c",
+    "file": "gitleaks.tar.gz",
+    "version": "8.24.3"
+  },
+  "python_fixture": {
+    "image": "python@sha256:a2b82f3c48559aa0a8446d9af49826b6e2b2016f4cd2afabfe6013ec53729170"
+  },
+  "browser_fixture": {
+    "image": "mcr.microsoft.com/playwright@sha256:6446946a1d9fd62d9ae501312a2d76a43ee688542b21622056a372959b65d63d"
+  }
+}

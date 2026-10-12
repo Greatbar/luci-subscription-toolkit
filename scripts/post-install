@@ -1,0 +1,11 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2026 LuCI Subscription Toolkit contributors
+set -eu
+[ -z "${IPKG_INSTROOT:-}" ] || exit 0
+chmod 600 /etc/config/podkop_tools /etc/config/podkop_tools_subscription
+/etc/init.d/podkop-tools enable
+# Enable only the finite boot hook; enabled=0 prevents fetch and restoration.
+# No startup, network fetch, native reload, package updates or world pins.
+rm -rf /tmp/luci-indexcache /tmp/luci-modulecache
+if [ -S /var/run/ubus/ubus.sock ]; then /etc/init.d/rpcd restart; fi

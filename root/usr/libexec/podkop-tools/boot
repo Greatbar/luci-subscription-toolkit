@@ -1,0 +1,7 @@
+#!/bin/sh
+set -eu
+for attempt in $(seq 1 30); do
+    if /usr/libexec/podkop-tools/task restore >/dev/null 2>&1; then exit 0; fi
+    sleep 2
+done
+exit 1

@@ -1,0 +1,17 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+# Copyright (C) 2026 LuCI Subscription Toolkit contributors
+set -eu
+[ -z "${IPKG_INSTROOT:-}" ] || exit 0
+/etc/init.d/podkop-tools stop
+/etc/init.d/podkop-tools disable
+if [ -f /tmp/podkop-tools/job.lock ]; then
+    exec 9>/tmp/podkop-tools/job.lock
+    attempt=0
+    until flock -n 9; do
+        [ "$attempt" -lt 310 ] || exit 1
+        attempt=$((attempt + 1))
+        sleep 1
+    done
+fi
+# User settings, accepted profiles and recovery snapshots are preserved.

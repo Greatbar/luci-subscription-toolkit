@@ -1,0 +1,30 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+set -eu
+case "$1" in
+list)
+    printf '%s\n' '{"source":{"url":""},"status":{},"seed":{},"fetch":{},"apply":{"version":""},"select":{"id":""},"speed":{"id":""},"latency":{"id":""},"service":{"id":""},"schedule":{}}'
+    ;;
+call)
+    case "$2" in
+        status) exec /usr/libexec/podkop-tools/task status ;;
+        source) exec /usr/libexec/podkop-tools/task source ;;
+        schedule) /etc/init.d/podkop-tools reload >/dev/null 2>&1; printf '{"ok":true}\n'; exit ;;
+        seed|fetch) set -- "$2" ;;
+        apply)
+            version=$(jq -er '.version | select(type=="string" and length==64)' 2>/dev/null)
+            case "$version" in *[!a-f0-9]*) exit 2 ;; esac
+            set -- apply "$version"
+            ;;
+        select|speed|latency|service)
+            id=$(jq -er '.id | select(type=="string" and length==64)' 2>/dev/null)
+            case "$id" in *[!a-f0-9]*) exit 2 ;; esac
+            set -- "$2" "$id"
+            ;;
+        *) exit 2 ;;
+    esac
+    nohup /usr/libexec/podkop-tools/task "$@" >/dev/null 2>&1 </dev/null &
+    printf '{"ok":true,"queued":true}\n'
+    ;;
+*) exit 2 ;;
+esac
