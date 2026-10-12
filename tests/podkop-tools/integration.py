@@ -463,12 +463,39 @@ def main():
         record('time_limited_partial_throughput',test.get('mbps',0)>0 and test['bytes']<4194304 and test['limit']=='time')
         record('speed_preserves_MAIN_and_process',public()['selected_id']==selected and pid()==before_pid)
         record('speed_preserves_ongoing_client_transfer',float(ongoing.result().stdout)==8388608 and pid()==before_pid);pool.shutdown()
-        dex('rm','-f','/tmp/podkop-tools/last_speed.json');uci('podkop_tools.main.speed_bytes',1048576);uci('podkop_tools.main.speed_seconds',6)
+        samples=json.loads(dex('cat','/tmp/podkop-tools/tests.json').stdout)
+        samples[selected]['speed_started_at']=int(time.time())-61
+        write('/tmp/podkop-tools/tests.json',json.dumps(samples))
+        uci('podkop_tools.main.speed_bytes',1048576);uci('podkop_tools.main.speed_seconds',6)
         task('speed',selected);test=next(n['test'] for n in public()['nodes'] if n['id']==selected)
         record('byte_limit_independent_of_time_limit',test.get('mbps',0)>0 and test['bytes']==1048576 and test['seconds']<6 and test['limit']=='bytes')
+        speed_before=fingerprint();speed_pid=pid();started=time.monotonic()
+        for node in public()['nodes']:
+            if node['id']==selected:continue
+            outcome=task('speed',node['id'],check=False)
+            measured=next(n['test'] for n in public()['nodes'] if n['id']==node['id'])
+            record('distinct_speed_without_global_cooldown_'+node['name'],outcome['ok'] and measured.get('mbps',0)>0 and measured['bytes']==1048576)
+            record('speed_cleanup_before_next_'+node['name'],dex('sh','-c',"test ! -e /tmp/podkop-tools/job && test ! -e /tmp/podkop-tools/lock && ! pgrep -f '^/usr/bin/sing-box run -c /tmp/podkop-tools/job/probe.json'").returncode==0)
+        current=public()
+        record('sequential_speed_queue_under_60_seconds',time.monotonic()-started<60)
+        record('independent_speed_retry_deadlines',current['speed_next_at']==0 and all(n['test'].get('speed_next_at',0)>time.time() for n in current['nodes']))
+        record('speed_queue_preserves_MAIN_PID_Selector',fingerprint()==speed_before and pid()==speed_pid and current['selected_id']==selected)
+        samples=json.loads(dex('cat','/tmp/podkop-tools/tests.json').stdout)
+        samples[selected]['speed_started_at']=int(time.time())-61
+        write('/tmp/podkop-tools/tests.json',json.dumps(samples))
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            running=pool.submit(task,'speed',selected)
+            deadline=time.monotonic()+10
+            while dex('test','-f','/tmp/podkop-tools/job/probe.pid',check=False).returncode and time.monotonic()<deadline:time.sleep(.1)
+            assert time.monotonic()<deadline,'speed probe did not start'
+            record('single_speed_probe_process',len(dex('pgrep','-f',r'^/usr/bin/sing-box run -c /tmp/podkop-tools/job/probe.json').stdout.splitlines())==1)
+            rejected=task('speed',service_id,check=False)
+            record('mutex_rejects_concurrent_speed',not rejected['ok'] and rejected['error']=='busy')
+            record('mutex_rejects_concurrent_cron_health',task('health',check=False).get('error')=='busy')
+            record('speed_worker_completes_and_cleans',running.result()['ok'] and dex('test','!','-e','/tmp/podkop-tools/job').returncode==0)
         # Diagnostics bind each metric to the accepted profile, despite stable ID reuse.
         task('latency',selected);task('service',selected)
-        current=public();record('diagnostic_receipt_and_configured_budget',current['measurement']['kind']=='service' and current['measurement']['id']==selected and current['speed_bytes']==1048576 and current['speed_next_at']>time.time())
+        current=public();record('diagnostic_receipt_and_configured_budget',current['measurement']['kind']=='service' and current['measurement']['id']==selected and current['speed_bytes']==1048576 and next(n['test']['speed_next_at'] for n in current['nodes'] if n['id']==selected)>time.time())
         original=json.loads(dex('cat','/etc/podkop-tools/state.json').stdout);mutated=copy.deepcopy(original)
         next(n for n in mutated['nodes'] if n['id']==selected)['outbound']['server_port']=14999
         before=fingerprint();old_pid=pid();write_signed_state(mutated)

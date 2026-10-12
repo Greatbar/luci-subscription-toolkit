@@ -602,7 +602,7 @@ function check_active() {
 function speed(id) {
     let state = state_seed(); actual_selection(state);
     let node = filter(state.nodes, n => n.id == id)[0]; if (!node) die('unknown_node');
-    let results = load(TMP + '/tests.json', {}), previous = load(TMP + '/last_speed.json', 0);
+    let results = load(TMP + '/tests.json', {}), previous = results[id]?.speed_started_at ?? results[id]?.at ?? 0;
     if (time() - previous < 60) die('speed_cooldown');
     let memory = fs.readfile('/proc/meminfo'), available = match(memory, /MemAvailable:[[:space:]]+([0-9]+)/);
     let loadavg = +split(fs.readfile('/proc/loadavg'), ' ')[0];
@@ -610,14 +610,17 @@ function speed(id) {
     let cap = number('speed_bytes', 4194304, 262144, 16777216), seconds = number('speed_seconds', 6, 2, 15);
     let endpoint = cfg('speed_url', 'https://speed.cloudflare.com/__down?bytes={bytes}');
     endpoint = replace(endpoint, '{bytes}', '' + cap); check_url(endpoint);
-    save(TMP + '/last_speed.json', time());
+    // Rate-limit repeat attempts of this stable ID, including failed probes.
+    // The task mutex serializes different IDs through probe cleanup.
+    let old = results[id] ?? {};
+    old.speed_started_at = time(); results[id] = old; save(TMP + '/tests.json', results);
     let result;
     try {
         let response = get_through(node.outbound, endpoint, '/dev/null', seconds, cap);
         result = sample(response.metrics, response.code, cap, 262144, 0.5);
     } catch (e) { stop_probe(); result = { error: 'speed_failed' }; }
     result.at = time(); result.profile_signature = canonical(node.outbound);
-    let old = results[id] ?? {}; for (let k, v in result) old[k] = v;
+    for (let k, v in result) old[k] = v;
     if (!result.error) delete old.error;
     else delete old.mbps;
     results[id] = old; save(TMP + '/tests.json', results);
@@ -665,7 +668,7 @@ function public_status() {
     try { implementation_compatible(); } catch (e) { status.compatible = false; status.error = 'incompatible'; }
     status.subscription_configured = !!ctx.get('podkop_tools_subscription', 'main', 'url');
     status.speed_bytes = number('speed_bytes', 4194304, 262144, 16777216);
-    status.speed_next_at = load(TMP + '/last_speed.json', 0) + 60;
+    status.speed_next_at = 0; // Retained RPC field: there is no global speed cooldown.
     status.enabled = cfg('enabled', '0') == '1'; status.selected_id = state.selected_id; status.last_apply = state.last_apply;
     status.pending = pending != null; status.count = length(state.nodes ?? []); status.pending_count = length(pending?.nodes ?? []);
     status.pending_version = pending?.source_hash;
@@ -683,6 +686,8 @@ function public_status() {
     if (status.control && status.control.selected_id != status.selected_id) status.control = null;
     status.nodes = map(state.nodes ?? [], n => {
         let test = json(sprintf('%J', tests[n.id] ?? {}));
+        let speed_started = test.speed_started_at ?? test.at ?? 0;
+        test.speed_next_at = speed_started ? speed_started + 60 : 0;
         let profile = canonical(n.outbound);
         test.latency_stale = test.latency_profile_signature != profile;
         test.speed_stale = test.profile_signature != profile;

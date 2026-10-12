@@ -59,7 +59,7 @@ const fs = require('node:fs');
  console.log('PASS real RPC: latency/service, cleanup, unchanged Selector');
  // Controlled public-status responses exercise queue edge cases without 44 MiB of network traffic.
  const fixture=structuredClone(actual);fixture.busy=false;fixture.last_success=1700000000;
- let failId=fixture.nodes[0].id,delay=0;
+ let failId=fixture.nodes[0].id,delay=0,cronAfterSpeed=false;
  const probes=[];
  await page.route('**/ubus/**',async route=>{
    const input=route.request().postDataJSON();const batch=Array.isArray(input)?input:[input];
@@ -72,8 +72,9 @@ const fs = require('node:fs');
        setTimeout(()=>{const n=fixture.nodes.find(n=>n.id===params.id);const at=Math.floor(Date.now()/1000);
          if(kind==='latency'){n.test.latency=154;n.test.latency_at=at;n.test.latency_stale=false;}
          if(kind==='service')n.test.service={at,ok:params.id!==failId,error:params.id===failId?'service_tls_failed':null,stale:false};
-         if(kind==='speed'){n.test.mbps=60.5;n.test.at=at;n.test.speed_stale=false;fixture.speed_next_at=at+60;}
+         if(kind==='speed'){n.test.mbps=60.5;n.test.at=at;n.test.speed_stale=false;n.test.speed_next_at=at+60;}
          fixture.measurement={sequence:(fixture.measurement?.sequence||0)+1,id:params.id,kind,ok:params.id!==failId,error:params.id===failId?'router_busy':null};fixture.busy=false;
+         if(kind==='speed'&&cronAfterSpeed){cronAfterSpeed=false;fixture.busy=true;setTimeout(()=>{fixture.busy=false;},2000);}
        },delay);
        replies.push({jsonrpc:'2.0',id:item.id,result:[0,{ok:true,queued:true}]});
      } else {assert.equal(kind,'fetch');replies.push({jsonrpc:'2.0',id:item.id,result:[0,{ok:true,queued:true}]});}
@@ -93,7 +94,7 @@ const fs = require('node:fs');
  await page.getByRole('button',{name:'Остановить',exact:true}).click();
  await page.getByRole('status').filter({hasText:'Проверка остановлена'}).waitFor({timeout:10000});
  assert.equal(probes.length,before+1);assert.equal(fixture.busy,false);
- // Speed consent and cancellation during the global cooldown.
+ // Speed consent, sequential different IDs and cron after a completed receipt.
  delay=0;
  await page.getByRole('checkbox',{name:'Скорость',exact:true}).check();
  await page.getByRole('button',{name:'Запустить проверку',exact:true}).click();
@@ -102,15 +103,25 @@ const fs = require('node:fs');
  const cancelBefore=probes.length;await page.getByRole('button',{name:'Отмена',exact:true}).click();assert.equal(probes.length,cancelBefore);
  await page.getByRole('checkbox',{name:'Задержка',exact:true}).uncheck();
  await page.getByRole('checkbox',{name:'Доступность сервиса',exact:true}).uncheck();
- fixture.speed_next_at=Math.floor(Date.now()/1000)+60;
+ failId=null;cronAfterSpeed=true;
+ const speedBefore=probes.length;
+ await page.getByRole('button',{name:'Запустить проверку',exact:true}).click();
+ await page.getByRole('button',{name:'Запустить',exact:true}).click();
+ await page.getByRole('status').filter({hasText:'Ожидание текущего задания'}).waitFor();
+ assert.ok((await page.locator('.stk-table tr').nth(1).innerText()).includes('60,5 Мбит/с'),'finished speed result is visible while cron holds the next lock');
+ await page.getByRole('status').filter({hasText:'Проверено 11 из 11'}).waitFor({timeout:20000});
+ const speeds=probes.slice(speedBefore);assert.equal(speeds.length,11);assert.equal(new Set(speeds.map(p=>p.id)).size,11);
+ assert.ok(speeds.every(p=>p.kind==='speed'));assert.ok(speeds.at(-1).at-speeds[0].at<20000,'no fixed 60-second wait between distinct servers');
+ // Stop while waiting to retest the same server; no additional probe.
+ fixture.nodes.forEach(n=>n.test.speed_next_at=Math.floor(Date.now()/1000)+60);
  await page.getByRole('button',{name:'Обновить список',exact:true}).click();
  await page.getByRole('button',{name:'Запустить проверку',exact:true}).click();
  await page.getByRole('button',{name:'Запустить',exact:true}).click();
  await page.getByRole('status').filter({hasText:'Ожидание интервала скорости'}).waitFor();
  await page.getByRole('button',{name:'Остановить',exact:true}).click();
- await page.getByRole('status').filter({hasText:'Проверка остановлена'}).waitFor();assert.equal(probes.length,cancelBefore);
+ await page.getByRole('status').filter({hasText:'Проверка остановлена'}).waitFor();assert.equal(probes.length,speedBefore+11);
  // Only active scope and a single menu test use the same queue.
- fixture.speed_next_at=0;
+ fixture.nodes.forEach(n=>n.test.speed_next_at=0);
  await page.getByRole('combobox',{name:'Область:'}).selectOption('active');
  await page.getByRole('button',{name:'Обновить список',exact:true}).click();
  const activeBefore=probes.length;

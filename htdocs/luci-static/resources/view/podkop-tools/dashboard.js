@@ -74,7 +74,7 @@ return view.extend({
             const cancel = () => { ui.hideModal(); this.localBusy = false; this.redraw(); };
             ui.showModal('Запустить проверку скорости?', [
                 E('p', {}, 'До ' + number(Math.ceil(ids.length * cap / 1048576 * 10) / 10) + ' МиБ только для speed-тестов (' +
-                    ids.length + ' × ' + number(Math.ceil(cap / 1048576 * 10) / 10) + ' МиБ). Интервал между ними — не менее 60 с.'),
+                    ids.length + ' × ' + number(Math.ceil(cap / 1048576 * 10) / 10) + ' МиБ). Проверки выполняются по одной.'),
                 E('div', { 'class': 'stk-buttons right' }, [button('Отмена', cancel), button('Запустить', () => {
                     cancel(); return this.runTests(ids, kinds, cap);
                 })])
@@ -101,7 +101,8 @@ return view.extend({
                         if (kind === 'speed' && s.speed_bytes !== cap) {
                             this.progress.message = 'Лимит трафика изменился; подтвердите запуск заново'; this.stopping = true; break;
                         }
-                        const cooldown = kind === 'speed' && s.speed_next_at * 1000 > Date.now();
+                        const nextSpeed = (s.nodes || []).find(n => n.id === id)?.test?.speed_next_at ?? s.speed_next_at;
+                        const cooldown = kind === 'speed' && nextSpeed * 1000 > Date.now();
                         if (!s.busy && !cooldown) break;
                         this.progress.message = s.busy ? 'Ожидание текущего задания' : 'Ожидание интервала скорости';
                         this.redraw();
