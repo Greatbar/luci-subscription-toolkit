@@ -18,6 +18,7 @@
 | Readiness/integer-only BusyBox sleep | PASS |
 | Настоящий LuCI в браузере | PASS |
 | Audit injection/scoped-exception regressions | 2 PASS |
+| Source/link/release/clone attack regressions | 11 PASS |
 | Два checkout с разными timestamp | Побайтово одинаковые APK |
 | APK payload | 19 файлов, совпадают с allowlist исходников |
 | APK ownership/license/conflict metadata | root / GPL-2.0-only / конфликт старого пакета |
@@ -46,3 +47,26 @@ receipts сохраняются вне tracked-дерева, в `.build/audit-hi
 Self-review выполнено основным автором: пользователь запретил субагентов.
 Независимое ревью другим человеком остаётся полезным перед внешней публикацией.
 Публичный GitHub, push/release и публикация APK не выполнялись.
+
+## Security hardening verification
+
+The required gate is `python3 -B tools/prepublish.py`. It freezes the complete
+candidate as a temporary Git tree, scans the current sources and every existing
+Git object, validates pinned tools and generated fixtures, builds/extracts the APK,
+and checks the exact three release files. The receipt in .build/prepublish.json
+identifies the candidate tree; it is a local report, never a release attachment.
+
+The pre-push hook runs the same gate with --require-head. Current uncommitted
+infrastructure changes require separate commit authorization; the hook rejects
+an old HEAD even if a working candidate passes. No commit/push/tag/release was run.
+
+Temporary clone attacks cover hidden files, external file/directory links, nested
+.build, changed payload bytes, a synthetic API-key canary in README and ignored
+.env. Both build/staging and prepublish must return failure with the policy reason.
+Historical fixtures are also compared byte-for-byte with explicitly constructed
+synthetic TLS data; current fixtures are generated synthetic Reality data.
+
+The addon payload remains byte-identical to r6. Tests/reproducibility.py now uses
+two fresh clones overlaid with the frozen candidate, without committing, and
+compares both normalized APKs with the release APK. Runtime root/htdocs/scripts
+files remain unchanged. Full tests use only the isolated public-input lab.

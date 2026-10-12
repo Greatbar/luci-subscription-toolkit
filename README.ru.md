@@ -163,7 +163,7 @@ cron/boot выключаются; Podkop и MAIN сохраняются. Нас�
 ```sh
 python3 tools/prepare.py --audit
 python3 tests/test_audit.py
-python3 tools/audit.py --gitleaks .build/gitleaks --history
+python3 -B tools/prepublish.py
 ```
 
 ## Лицензия
@@ -171,3 +171,8 @@ python3 tools/audit.py --gitleaks .build/gitleaks --history
 Собственный код — [GPL-2.0-only](LICENSE). Уведомления сторонних проектов:
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Название Podkop используется
 описательно для совместимости; права на его товарные знаки не передаются.
+
+Обязательная проверка перед публикацией: `python3 -B tools/prepublish.py`.
+См. [политику безопасности](docs/SECURITY.md). Для каждого клона включите защиту
+push командой `git config core.hooksPath .githooks`. Она также требует совпадения
+кандидата с HEAD; commit выполняется только после отдельного разрешения.

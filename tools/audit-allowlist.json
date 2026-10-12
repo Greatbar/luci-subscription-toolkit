@@ -682,5 +682,110 @@
     "kind": "url",
     "value_sha256": "daf7a10019265742773db9396b7581a8ae56f4791944ee0b4a5a063b1210f78d",
     "reason": "public upstream/tool/license endpoint, public runtime default or synthetic lab URL"
+  },
+  {
+    "file": "tests/fixtures/outbounds.json",
+    "line": 7,
+    "kind": "credential_assignment",
+    "value_sha256": "fbe188455519eea9c342a5c81a53b5e71fd6cd1522c26522fe3fdbfd27bdf505",
+    "reason": "deterministic synthetic fixture constant; checked against generator bytes"
+  },
+  {
+    "file": "tests/fixtures/outbounds.json",
+    "line": 17,
+    "kind": "credential_assignment",
+    "value_sha256": "26fc22a104b3cdb74f9e91d6e75ec04886646d4affcc96504a97876335879737",
+    "reason": "deterministic synthetic fixture constant; checked against generator bytes"
+  },
+  {
+    "file": "tests/fixtures/outbounds.json",
+    "line": 18,
+    "kind": "credential_assignment",
+    "value_sha256": "77e92c5f02cae0bbd27cc864dfa0be5c9aebaa0d37d1f3f34ad1b9f59076ec61",
+    "reason": "deterministic synthetic fixture constant; checked against generator bytes"
+  },
+  {
+    "file": "tests/fixtures/provider.json",
+    "line": 26,
+    "kind": "credential_assignment",
+    "value_sha256": "9eaa2416505bd875209ff032f1dd43151c80bda34f89153d998311a2962fbb98",
+    "reason": "deterministic synthetic fixture constant; checked against generator bytes"
+  },
+  {
+    "file": "tests/fixtures/provider.json",
+    "line": 27,
+    "kind": "credential_assignment",
+    "value_sha256": "a46c35cbf67dbaefe7ae59e2c2d0bbe2c4f7d5545be317a23ad2f8b111314ecf",
+    "reason": "deterministic synthetic fixture constant; checked against generator bytes"
+  },
+  {
+    "file": "tests/podkop-tools/integration.py",
+    "line": 20,
+    "kind": "credential_assignment",
+    "value_sha256": "4cefa9fa6c7bca5a8f10c5dbba3cd3ad49c6ee3e2ba9e0ea25f8a0f4739e34b3",
+    "reason": "fixed synthetic lab UUID/token or code expression using that token"
+  },
+  {
+    "file": "tests/podkop-tools/integration.py",
+    "line": 21,
+    "kind": "credential_assignment",
+    "value_sha256": "1310147577770520d3fbabed45f96b62fd840b704e1ec578c7caa33907280e3c",
+    "reason": "fixed synthetic lab UUID/token or code expression using that token"
+  },
+  {
+    "file": "tests/podkop-tools/integration.py",
+    "line": 374,
+    "kind": "credential_assignment",
+    "value_sha256": "763f508932833a223ff57a66f69eb40b86c3b0e1ff69eab23e78536515c26a02",
+    "reason": "fixed synthetic lab UUID/token or code expression using that token"
+  },
+  {
+    "file": "tools/audit.py",
+    "line": 19,
+    "kind": "ipv6",
+    "value_sha256": "71546855d6279ef70d20909b292c42c2dcb02cd06bde01485da52d13e304ebf4",
+    "reason": "IPv6-like syntax in the MAC address detector regex, not an address"
+  },
+  {
+    "file": "tools/generate-fixtures.py",
+    "line": 9,
+    "kind": "hostname_literal",
+    "value_sha256": "8243714e12690caafee7816aa039cb7f35345218b15a2338189c57c913edacc1",
+    "reason": "deterministic synthetic fixture constant; checked against generator bytes"
+  },
+  {
+    "file": "tools/generate-fixtures.py",
+    "line": 10,
+    "kind": "uuid",
+    "value_sha256": "11e594f481958c10e3015d0bf0447a22f068a8a647f475df15ce2c7ab4b8f3f1",
+    "reason": "deterministic synthetic fixture constant; checked against generator bytes"
+  },
+  {
+    "file": "tools/generate-fixtures.py",
+    "line": 10,
+    "kind": "credential_literal",
+    "value_sha256": "4cefa9fa6c7bca5a8f10c5dbba3cd3ad49c6ee3e2ba9e0ea25f8a0f4739e34b3",
+    "reason": "deterministic synthetic fixture constant; checked against generator bytes"
+  },
+  {
+    "file": "tools/generate-fixtures.py",
+    "line": 10,
+    "kind": "credential_assignment",
+    "value_sha256": "4cefa9fa6c7bca5a8f10c5dbba3cd3ad49c6ee3e2ba9e0ea25f8a0f4739e34b3",
+    "reason": "deterministic synthetic fixture constant; checked against generator bytes"
+  },
+  {
+    "file": "tools/generate-fixtures.py",
+    "line": 13,
+    "kind": "credential_assignment",
+    "value_sha256": "9cfdd940569f6e9ab7cb9f7b82e9b714334a1a2efc3dfb46a0cc20920ed6e468",
+    "reason": "deterministic synthetic fixture constant; checked against generator bytes"
+  },
+  {
+    "file": "tests/test_security.py",
+    "line": 125,
+    "kind": "credential_assignment",
+    "value_sha256": "22bb54162510c6e315d540df972e45a331bd9163bd0316c433ffc071b444873f",
+    "reason": "literal synthetic API-key canary used only for rejection regression"
   }
 ]

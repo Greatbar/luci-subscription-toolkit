@@ -3,6 +3,8 @@
 # Copyright (C) 2026 LuCI Subscription Toolkit contributors
 """Run tests in an exclusively owned, disposable OpenWrt namespace."""
 import argparse, importlib.util, json, os, pathlib, shutil, subprocess, sys, time
+sys.dont_write_bytecode=True
+os.environ['PYTHONDONTWRITEBYTECODE']='1'
 ROOT=pathlib.Path(__file__).resolve().parents[1]
 MAIN='subscription-toolkit-test-main';EXIT='subscription-toolkit-test-exit';NETWORK='subscription-toolkit-test'
 def run(*args,**kw): return subprocess.run(args,check=True,**kw)
@@ -12,6 +14,8 @@ def main():
     p=argparse.ArgumentParser();p.add_argument('suite',choices=['unit','integration','recovery','rotation','ownership','readiness','browser','all']);a=p.parse_args()
     run('node',str(ROOT/'tests/podkop-tools/luci.cjs'))
     run('python3',str(ROOT/'tests/test_audit.py'))
+    run('python3','-B',str(ROOT/'tests/test_security.py'))
+    run('python3','-B',str(ROOT/'tools/generate-fixtures.py'),'--check')
     # Never adopt or remove an existing container or network.
     for kind,name in [('container',MAIN),('container',EXIT),('container','subscription-toolkit-test-driver'),('network',NETWORK)]:
         result=subprocess.run(['docker',kind,'inspect',name],stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL)
@@ -39,7 +43,7 @@ def main():
                 cert=lab.LAB/'fixture.crt';key=lab.LAB/'fixture.key'
                 run('openssl','req','-x509','-newkey','rsa:2048','-nodes','-keyout',str(key),'-out',str(cert),'-days','1','-subj','/CN=subscription-toolkit-fixture','-addext','subjectAltName=IP:127.0.0.1',stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);key.chmod(0o600)
                 image=json.loads((ROOT/'tools/sources.lock.json').read_text())['python_fixture']['image']
-                args=['docker','run','--rm','--name','subscription-toolkit-test-driver','--user',str(os.getuid())+':'+str(os.getgid()),'--group-add',str(os.stat('/var/run/docker.sock').st_gid),'--network','container:'+MAIN,'-e','TOOLKIT_SHARED_NAMESPACE=1','-e','PYTHONUNBUFFERED=1','-v',str(ROOT)+':/work','-v','/usr/bin/docker:/usr/bin/docker:ro','-v','/var/run/docker.sock:/var/run/docker.sock',image,'python3','/work/tests/podkop-tools/integration.py']
+                args=['docker','run','--rm','--name','subscription-toolkit-test-driver','--user',str(os.getuid())+':'+str(os.getgid()),'--group-add',str(os.stat('/var/run/docker.sock').st_gid),'--network','container:'+MAIN,'-e','TOOLKIT_SHARED_NAMESPACE=1','-e','PYTHONUNBUFFERED=1','-e','PYTHONDONTWRITEBYTECODE=1','-v',str(ROOT)+':/work','-v','/usr/bin/docker:/usr/bin/docker:ro','-v','/var/run/docker.sock:/var/run/docker.sock',image,'python3','-B','/work/tests/podkop-tools/integration.py']
                 if suite!='integration':args+=['--'+suite]
                 run(*args)
             elif suite=='readiness':run('python3',str(ROOT/'tests/podkop-tools/readiness.py'))

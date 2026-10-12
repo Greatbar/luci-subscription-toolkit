@@ -24,13 +24,7 @@ endef
 define Build/Compile
 endef
 define Package/luci-app-subscription-toolkit/install
-  $(CP) $(PODKOP_TOOLS_SOURCE)/root/* $(1)/
-  $(INSTALL_DIR) $(1)/www
-  $(CP) $(PODKOP_TOOLS_SOURCE)/htdocs/* $(1)/www/
-  $(INSTALL_BIN) $(PODKOP_TOOLS_SOURCE)/scripts/post-install $(1)/usr/share/podkop-tools/post-install
-  $(INSTALL_BIN) $(PODKOP_TOOLS_SOURCE)/scripts/pre-deinstall $(1)/usr/share/podkop-tools/pre-deinstall
-  chmod 600 $(1)/etc/config/podkop_tools $(1)/etc/config/podkop_tools_subscription
-  chmod 755 $(1)/etc/init.d/podkop-tools $(1)/usr/libexec/rpcd/podkop-tools $(1)/usr/libexec/podkop-tools/task $(1)/usr/libexec/podkop-tools/generate $(1)/usr/libexec/podkop-tools/boot
+  python3 -B "$(PODKOP_TOOLS_SOURCE)/tools/build-podkop-tools.py" --stage-only --output "$(1)"
 endef
 define Package/luci-app-subscription-toolkit/postinst
 #!/bin/sh

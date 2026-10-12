@@ -1,6 +1,6 @@
 [
   {
-    "remarks": "Synthetic node",
+    "remarks": "Generated synthetic node",
     "outbounds": [
       {
         "protocol": "vless",
@@ -20,9 +20,12 @@
         },
         "streamSettings": {
           "network": "tcp",
-          "security": "tls",
-          "tlsSettings": {
-            "serverName": "node.example.invalid"
+          "security": "reality",
+          "realitySettings": {
+            "serverName": "node.example.invalid",
+            "publicKey": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+            "shortId": "0000000000000001",
+            "fingerprint": "chrome"
           }
         }
       }

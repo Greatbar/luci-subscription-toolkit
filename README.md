@@ -170,7 +170,7 @@ Exceptions are limited to an exact file, category and reviewed value SHA256.
 ```sh
 python3 tools/prepare.py --audit
 python3 tests/test_audit.py
-python3 tools/audit.py --gitleaks .build/gitleaks --history
+python3 -B tools/prepublish.py
 ```
 
 ## License
@@ -178,3 +178,8 @@ python3 tools/audit.py --gitleaks .build/gitleaks --history
 Original work: [GPL-2.0-only](LICENSE). See
 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) for provenance and dependency notices.
 Podkop is mentioned descriptively for compatibility; no trademark rights are granted.
+
+The required publication gate is `python3 -B tools/prepublish.py`; see
+[security policy](docs/SECURITY.md). Install the local push guard in each clone
+with `git config core.hooksPath .githooks`. The guard also requires candidate
+bytes to equal HEAD; committing remains a separately authorized action.

@@ -1,53 +1,80 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: GPL-2.0-only
 # Copyright (C) 2026 LuCI Subscription Toolkit contributors
-"""Build a noarch OpenWrt APK with native apk-tools. No SDK/router mutations."""
-import argparse, hashlib, os, pathlib, shutil, subprocess, tempfile
+"""Package only an inspected immutable Git tree using the explicit payload policy."""
+import sys
+sys.dont_write_bytecode = True
+import argparse
+import hashlib
+import pathlib
+import subprocess
+import tempfile
+import os
+from security import APK_NAME, EPOCH, SecurityError, Snapshot, stage_payload
 
-p = argparse.ArgumentParser()
-p.add_argument('--apk', required=True)
-p.add_argument('--output', required=True)
-a = p.parse_args()
-root = pathlib.Path(__file__).resolve().parents[1]
-source = root
-output = pathlib.Path(a.output).resolve(); output.mkdir(parents=True, exist_ok=True)
-with tempfile.TemporaryDirectory(prefix='podkop-tools-build-') as tmp:
-    payload = pathlib.Path(tmp) / 'root'
-    shutil.copytree(source / 'root', payload)
-    shutil.copytree(source / 'htdocs', payload / 'www', dirs_exist_ok=True)
-    for script in ['post-install', 'pre-deinstall']:
-        target = payload / 'usr/share/podkop-tools' / script
-        shutil.copy2(source / 'scripts' / script, target); target.chmod(0o755)
-    (payload / 'etc/config/podkop_tools').chmod(0o600)
-    (payload / 'etc/config/podkop_tools_subscription').chmod(0o600)
-    for name in ['etc/init.d/podkop-tools', 'usr/libexec/rpcd/podkop-tools',
-                 'usr/libexec/podkop-tools/task', 'usr/libexec/podkop-tools/generate', 'usr/libexec/podkop-tools/boot']:
-        (payload / name).chmod(0o755)
-    # Freeze checkout-dependent timestamps and permissions before mkpkg.
-    epoch = 1700000000
-    for entry in sorted(payload.rglob('*'), reverse=True):
-        if entry.is_symlink():
-            raise RuntimeError('unexpected payload symlink')
-        if entry.is_dir(): entry.chmod(0o755)
-        elif str(entry.relative_to(payload)) not in ['etc/config/podkop_tools', 'etc/config/podkop_tools_subscription']:
-            entry.chmod(0o755 if entry.stat().st_mode & 0o111 else 0o644)
-        os.utime(entry, (epoch, epoch))
-    payload.chmod(0o755); os.utime(payload, (epoch, epoch))
-    artifact = output / 'luci-app-subscription-toolkit-0.1.0-r6.apk'
-    native = pathlib.Path(a.apk).resolve().with_name('.apk.bin')
-    builder = str(native) if native.exists() else a.apk
-    args = [builder, 'mkpkg', '--info', 'name:luci-app-subscription-toolkit', '--info', 'version:0.1.0-r6',
-            '--info', 'arch:noarch', '--info', 'license:GPL-2.0-only', '--info',
-            'description:Isolated subscription and throughput tools for stock Podkop', '--info',
-            'depends:!luci-app-podkop-tools podkop sing-box luci-base rpcd ucode ucode-mod-fs ucode-mod-uci liblucihttp-ucode curl jq bind-dig coreutils-timeout coreutils-nohup',
-            '--files', str(payload), '--output', str(artifact), '--script',
-            'post-install:' + str(source / 'scripts/post-install'), '--script',
-            'pre-deinstall:' + str(source / 'scripts/pre-deinstall')]
-    subprocess.run(['fakeroot', '/bin/sh', '-c', 'set -e; chown -R 0:0 "$1"; shift; exec "$@"', 'podkop-tools-build', str(payload), *args], check=True, env={**os.environ, 'SOURCE_DATE_EPOCH': str(epoch), 'LC_ALL': 'C', 'TZ': 'UTC'})
-    metadata = subprocess.run([builder, 'adbdump', str(artifact)], check=True, capture_output=True, text=True).stdout
-    if any(line.strip().startswith(('user:', 'group:')) and line.split(':', 1)[1].strip() != 'root' for line in metadata.splitlines()):
-        artifact.unlink()
-        raise RuntimeError('APK contains non-root file owners')
-    digest = hashlib.sha256(artifact.read_bytes()).hexdigest()
-    (output / 'SHA256SUMS').write_text(digest + '  ' + artifact.name + '\n')
-    print(artifact)
+
+def apk_executable(path):
+    path = pathlib.Path(path).absolute()
+    native = path.with_name('.apk.bin')
+    return str(native if native.exists() else path)
+
+
+def build(snapshot, apk, output):
+    output = pathlib.Path(output)
+    from security import check_release_directory
+    check_release_directory(output)
+    output.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix='toolkit-build-') as tmp:
+        payload = pathlib.Path(tmp) / 'payload'
+        stage_payload(snapshot, payload)
+        args = [apk_executable(apk), 'mkpkg', '--info', 'name:luci-app-subscription-toolkit',
+                '--info', 'version:0.1.0-r6', '--info', 'arch:noarch', '--info', 'license:GPL-2.0-only',
+                '--info', 'description:Isolated subscription and throughput tools for stock Podkop',
+                '--info', 'depends:!luci-app-podkop-tools podkop sing-box luci-base rpcd ucode ucode-mod-fs ucode-mod-uci liblucihttp-ucode curl jq bind-dig coreutils-timeout coreutils-nohup',
+                '--files', str(payload), '--output', str(output / APK_NAME)]
+        for name in ('post-install', 'pre-deinstall'):
+            args += ['--script', name + ':' + str(payload / 'usr/share/podkop-tools' / name)]
+        subprocess.run(['fakeroot', '/bin/sh', '-c',
+                        'set -e; chown -R 0:0 "$1"; shift; exec "$@"', 'toolkit-build', str(payload), *args],
+                       check=True, env={**os.environ, 'SOURCE_DATE_EPOCH': str(EPOCH), 'LC_ALL': 'C', 'TZ': 'UTC'})
+        snapshot.verify_unchanged()
+        artifact = output / APK_NAME
+        metadata = subprocess.run([apk_executable(apk), 'adbdump', str(artifact)], check=True,
+                                  capture_output=True, text=True).stdout
+        if any(l.strip().startswith(('user:', 'group:')) and l.split(':', 1)[1].strip() != 'root'
+               for l in metadata.splitlines()):
+            raise SecurityError('non-root APK owner')
+        (output / 'SHA256SUMS').write_text(hashlib.sha256(artifact.read_bytes()).hexdigest() + '  ' + APK_NAME + '\n')
+        return artifact
+
+
+def main():
+    p = argparse.ArgumentParser()
+    p.add_argument('--apk')
+    p.add_argument('--output', required=True)
+    p.add_argument('--stage-only', action='store_true')
+    a = p.parse_args()
+    root = pathlib.Path(__file__).resolve().parents[1]
+    snapshot = Snapshot(root)
+    try:
+        if a.stage_only:
+            stage_payload(snapshot, a.output)
+            snapshot.verify_unchanged()
+        else:
+            if not a.apk:
+                raise SecurityError('--apk is required')
+            output = pathlib.Path(a.output).absolute()
+            from security import check_release_directory
+            if output == root / 'dist':
+                check_release_directory(output)
+            print(build(snapshot, a.apk, output))
+    finally:
+        snapshot.close()
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (SecurityError, OSError, ValueError, subprocess.CalledProcessError) as e:
+        print('BLOCKED: ' + (str(e) if isinstance(e, SecurityError) else type(e).__name__), file=sys.stderr)
+        raise SystemExit(1)

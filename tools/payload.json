@@ -1,0 +1,116 @@
+[
+  {
+    "source": "htdocs/luci-static/resources/view/podkop-tools/dashboard.js",
+    "target": "www/luci-static/resources/view/podkop-tools/dashboard.js",
+    "mode": 420,
+    "sha256": "0c98d1f1ff2920378b3d76967bf31d08022afcbc9cd8121bb913a5ffca289f90"
+  },
+  {
+    "source": "htdocs/luci-static/resources/view/podkop-tools/settings.js",
+    "target": "www/luci-static/resources/view/podkop-tools/settings.js",
+    "mode": 420,
+    "sha256": "b878e3ce666b299ba44e02b52eb625992302162dbb0bb6c1af9ab56b8eef5c34"
+  },
+  {
+    "source": "root/etc/config/podkop_tools",
+    "target": "etc/config/podkop_tools",
+    "mode": 384,
+    "sha256": "7904eb73c34870494a3be6e78c3a658df287532bb039eea7dcd33dd061dbe8a5"
+  },
+  {
+    "source": "root/etc/config/podkop_tools_subscription",
+    "target": "etc/config/podkop_tools_subscription",
+    "mode": 384,
+    "sha256": "1257362101fcad8d12ec21eb0322e73303bcb6151f02a53422ad5acae156327b"
+  },
+  {
+    "source": "root/etc/init.d/podkop-tools",
+    "target": "etc/init.d/podkop-tools",
+    "mode": 493,
+    "sha256": "da6ad9938bfce2207088d3bc3b1d56a7b81f703199dbc75de6b0c1f96b8f57f1"
+  },
+  {
+    "source": "root/lib/upgrade/keep.d/podkop-tools",
+    "target": "lib/upgrade/keep.d/podkop-tools",
+    "mode": 420,
+    "sha256": "01710fcc1ec4a36d2894cdd9b91a21adc75b790945d2077001bc3b76f8be6bcd"
+  },
+  {
+    "source": "root/usr/libexec/podkop-tools/backend.uc",
+    "target": "usr/libexec/podkop-tools/backend.uc",
+    "mode": 420,
+    "sha256": "6c30d6698734e0a24308aebf4e856021d609de56cb595905facbdfd255bace6c"
+  },
+  {
+    "source": "root/usr/libexec/podkop-tools/boot",
+    "target": "usr/libexec/podkop-tools/boot",
+    "mode": 493,
+    "sha256": "f6decb4387f005d3bafa5a4da4fae1314cdaebecfc7426cf473ff873c0e9eddd"
+  },
+  {
+    "source": "root/usr/libexec/podkop-tools/generate",
+    "target": "usr/libexec/podkop-tools/generate",
+    "mode": 493,
+    "sha256": "f3e47593673f6e81d113fa566eea1e83e86e525151e49046dad93958e4ee7510"
+  },
+  {
+    "source": "root/usr/libexec/podkop-tools/model.uc",
+    "target": "usr/libexec/podkop-tools/model.uc",
+    "mode": 420,
+    "sha256": "86108510fbc34bc60b2ce9c0e389eb5d081e4e06e277c188eb33bec1d1f63c86"
+  },
+  {
+    "source": "root/usr/libexec/podkop-tools/task",
+    "target": "usr/libexec/podkop-tools/task",
+    "mode": 493,
+    "sha256": "2dd5eede2ec44be3ab16c16091606880539957f61aab3b036bb87c6e8712a5c4"
+  },
+  {
+    "source": "root/usr/libexec/rpcd/podkop-tools",
+    "target": "usr/libexec/rpcd/podkop-tools",
+    "mode": 493,
+    "sha256": "f2d33fc6c78c3f30c46eed3ba4236e21b2d41f62c7c4f3aea6108ce6439dfe43"
+  },
+  {
+    "source": "root/usr/share/luci/menu.d/luci-app-subscription-toolkit.json",
+    "target": "usr/share/luci/menu.d/luci-app-subscription-toolkit.json",
+    "mode": 420,
+    "sha256": "8f0f351d11f4a1a202bec1cbb98ef1eb207f9449963fb19c8057c8d32f902ef9"
+  },
+  {
+    "source": "root/usr/share/podkop-tools/compat.sha256",
+    "target": "usr/share/podkop-tools/compat.sha256",
+    "mode": 420,
+    "sha256": "46641fc013560969a0fa14f0d292aaa16e6b086b934c6bd0ce7f7bc1c3f7c199"
+  },
+  {
+    "source": "root/usr/share/rpcd/acl.d/luci-app-subscription-toolkit.json",
+    "target": "usr/share/rpcd/acl.d/luci-app-subscription-toolkit.json",
+    "mode": 420,
+    "sha256": "0c6e1d19e52cf05084d5ee3f3b4ca30c4855f7e8b97aa84f1f027acf64049bb1"
+  },
+  {
+    "source": "root/usr/share/subscription-toolkit/LICENSE",
+    "target": "usr/share/subscription-toolkit/LICENSE",
+    "mode": 420,
+    "sha256": "8177f97513213526df2cf6184d8ff986c675afb514d4e68a404010521b880643"
+  },
+  {
+    "source": "root/usr/share/subscription-toolkit/THIRD_PARTY_NOTICES.md",
+    "target": "usr/share/subscription-toolkit/THIRD_PARTY_NOTICES.md",
+    "mode": 420,
+    "sha256": "8d8246964ef22fea8c5e4ff55500d424cd9c18fc6ec0969df1e149775d634030"
+  },
+  {
+    "source": "scripts/post-install",
+    "target": "usr/share/podkop-tools/post-install",
+    "mode": 493,
+    "sha256": "15300c3b9fe5dbe098c1a907ef57f014ec5b6cb0dadf725014a289d0eec72d7a"
+  },
+  {
+    "source": "scripts/pre-deinstall",
+    "target": "usr/share/podkop-tools/pre-deinstall",
+    "mode": 493,
+    "sha256": "e277105db217afccd3f2ec1d4ec0303255510ba98de594777f541d9f0cf5a915"
+  }
+]

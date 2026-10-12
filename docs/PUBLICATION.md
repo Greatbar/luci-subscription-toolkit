@@ -1,18 +1,24 @@
-# Local publication proposal / план публикации
+# Publication procedure
 
-No remote, push, public repository, release, APK upload or router installation has
-been performed. The local initial commit is the publication candidate.
+The corrected working candidate is verified without a commit. Its immutable Git
+tree ID and release hashes are recorded by `python3 -B tools/prepublish.py`.
+The existing initial HEAD does not yet contain these infrastructure fixes.
+No push, public repository, tag, release or router installation is authorized.
 
 After separate operator authorization:
-1. Create a public repository named luci-subscription-toolkit under the selected
-   account, using the standalone name and explicit independent compatibility text.
-2. Push the audited initial commit and run build/tests from a clean checkout.
-3. Review the compatibility limits and GPL/third-party notices. Preserve complete
-   corresponding sources and build scripts alongside each addon release.
-4. Tag 0.1.0-r6 and publish only the addon APK, SHA256SUMS and corresponding source.
-   Do not attach Docker images, dependency binaries, private reports or lab outputs.
-5. For subsequent releases, repeat file/history/payload secret audit and clean-build
-   comparison; add compatibility profiles only after testing their exact upstream files.
+1. Run `python3 -B tools/prepublish.py`. Any nonzero exit blocks publication.
+2. Review and commit only the files in tools/publication-files.json. Never use a
+   recursive upload of the working directory or ignored local artifacts.
+3. Install the local guard in each clone: `git config core.hooksPath .githooks`.
+4. Run `python3 -B tools/prepublish.py --require-head`; verify that its candidate
+   tree equals the committed HEAD tree. The pre-push hook runs this same command.
+5. Only then perform the separately authorized repository creation/push/tag.
+6. Upload exactly the three filenames emitted by prepublish: the addon APK,
+   corresponding source tar.gz and SHA256SUMS. No glob-based attachment selection.
+   A release directory containing any extra object is rejected by prepublish.
+7. Repeat this gate for every subsequent push and release. Preserve corresponding
+   sources, build scripts, licenses and notices with each release.
 
-Any future migration of an installed luci-app-podkop-tools is a separate operational
-step. Co-installation is blocked, and no migration commands were run on a router.
+The hook and release procedure prevent accidental publication through these
+paths; deliberately bypassing the hook or uploading other files is not approved.
+Migration or installation on an existing router is a separate operation.

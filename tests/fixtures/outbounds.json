@@ -7,7 +7,16 @@
       "uuid": "00000000-0000-4000-8000-000000000001",
       "tls": {
         "enabled": true,
-        "server_name": "node.example.invalid"
+        "server_name": "node.example.invalid",
+        "utls": {
+          "enabled": true,
+          "fingerprint": "chrome"
+        },
+        "reality": {
+          "enabled": true,
+          "public_key": "AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8",
+          "short_id": "0000000000000001"
+        }
       }
     }
   ]
