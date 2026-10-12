@@ -37,7 +37,7 @@ def main():
         lab.cp(ROOT/'tests/podkop-tools/provider.uc','/tmp/provider.uc')
         exec_('ucode','/tmp/provider.uc','/tmp/provider.json','/tmp/outbounds.json','/tmp/provider-check.json')
         exec_('sing-box','check','-c','/tmp/provider-check.json')
-        suites=['integration','recovery','rotation','ownership','readiness','browser'] if a.suite=='all' else ([] if a.suite=='unit' else ['baseline',a.suite] if a.suite in ('browser','readiness') else [a.suite])
+        suites=['integration','recovery','rotation','ownership','readiness','baseline','browser'] if a.suite=='all' else ([] if a.suite=='unit' else ['baseline',a.suite] if a.suite in ('browser','readiness') else [a.suite])
         for suite in suites:
             if suite in ('integration','recovery','rotation','ownership','baseline'):
                 cert=lab.LAB/'fixture.crt';key=lab.LAB/'fixture.key'
@@ -52,7 +52,12 @@ def main():
                 exec_('sh','-c',"printf 'PodkopLabOnly123\\nPodkopLabOnly123\\n' | passwd root")
                 exec_('/etc/init.d/uhttpd','restart')
                 image=json.loads((ROOT/'tools/sources.lock.json').read_text())['browser_fixture']['image']
+                before=lab.fingerprint();old_pid=lab.pid();selection=lab.public()['selected_id']
                 docker('run','--rm','--network','container:'+MAIN,'-e','TOOLKIT_LAB_URL=http://127.0.0.1:80','-v',str(ROOT)+':/work','-w','/work',image,'node','tests/podkop-tools/browser.cjs')
+                assert lab.fingerprint()==before and lab.pid()==old_pid and lab.public()['selected_id']==selection, 'browser tests changed MAIN/PID/Selector'
+                assert not lab.public()['busy'], 'unfinished browser diagnostic job'
+                exec_('sh','-c',"test ! -e /tmp/podkop-tools/job/probe.pid && ! pgrep -f '^/usr/bin/sing-box run -c /tmp/podkop-tools/job/probe.json'")
+                print('PASS browser preserves MAIN/configuration/PID/Selector; no temporary probes',flush=True)
     finally:
         if container:
             subprocess.run(['docker','rm','-f',MAIN],check=True,stdout=subprocess.DEVNULL)

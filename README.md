@@ -79,6 +79,14 @@ in Russian; the English documentation does not imply an English UI translation.
 
 ## Configure a subscription
 
+The Servers page refreshes public status without importing or applying changes.
+The check panel and per-row Test button run the checked diagnostics; More opens
+individual tests. Checks run sequentially for all accepted servers or the active
+server. Stop discards the remaining queue after the current bounded probe cleans
+up. Speed checks require consent to the total configured traffic cap and respect
+the global 60-second cooldown. Stale measurements are marked; technical data is
+under Details. Pending candidates are excluded from this panel.
+
 1. Enter an HTTPS subscription URL in settings. An empty replacement field keeps
    the existing URL. Redirects and URL userinfo are rejected; TLS is verified.
 2. Fetch the subscription. This validates a candidate without applying MAIN.

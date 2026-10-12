@@ -616,7 +616,7 @@ function speed(id) {
         let response = get_through(node.outbound, endpoint, '/dev/null', seconds, cap);
         result = sample(response.metrics, response.code, cap, 262144, 0.5);
     } catch (e) { stop_probe(); result = { error: 'speed_failed' }; }
-    result.at = time();
+    result.at = time(); result.profile_signature = canonical(node.outbound);
     let old = results[id] ?? {}; for (let k, v in result) old[k] = v;
     if (!result.error) delete old.error;
     else delete old.mbps;
@@ -644,6 +644,7 @@ function service(id) {
     fs.unlink(JOB + '/service-body');
     result.at = time();
     result.configuration_hash = filehash('/etc/config/podkop');
+    result.profile_signature = canonical(node.outbound);
     let tests = load(TMP + '/tests.json', {}), item = tests[id] ?? {};
     item.service = result; tests[id] = item; save(TMP + '/tests.json', tests);
     status_update({ state: 'service_finished' });
@@ -655,6 +656,7 @@ function latency(id) {
         let result = api('/proxies/' + sprintf('main-%d-out', position + 1) + '/delay?timeout=5000&url=' + encode(cfg('health_url', 'https://www.gstatic.com/generate_204')));
         item.latency = result.delay; delete item.latency_error;
     } catch (e) { delete item.latency; item.latency_error = 'latency_failed'; }
+    item.latency_profile_signature = canonical(state.nodes[position].outbound);
     item.latency_at = time(); tests[id] = item; save(TMP + '/tests.json', tests);
 }
 function public_status() {
@@ -662,6 +664,8 @@ function public_status() {
     status.compatible = true;
     try { implementation_compatible(); } catch (e) { status.compatible = false; status.error = 'incompatible'; }
     status.subscription_configured = !!ctx.get('podkop_tools_subscription', 'main', 'url');
+    status.speed_bytes = number('speed_bytes', 4194304, 262144, 16777216);
+    status.speed_next_at = load(TMP + '/last_speed.json', 0) + 60;
     status.enabled = cfg('enabled', '0') == '1'; status.selected_id = state.selected_id; status.last_apply = state.last_apply;
     status.pending = pending != null; status.count = length(state.nodes ?? []); status.pending_count = length(pending?.nodes ?? []);
     status.pending_version = pending?.source_hash;
@@ -678,8 +682,16 @@ function public_status() {
     } catch (e) { status.runtime_available = false; }
     if (status.control && status.control.selected_id != status.selected_id) status.control = null;
     status.nodes = map(state.nodes ?? [], n => {
-        let test = tests[n.id] ?? {};
-        if (test.service) test.service.stale = test.service.configuration_hash != filehash('/etc/config/podkop');
+        let test = json(sprintf('%J', tests[n.id] ?? {}));
+        let profile = canonical(n.outbound);
+        test.latency_stale = test.latency_profile_signature != profile;
+        test.speed_stale = test.profile_signature != profile;
+        if (test.service) {
+            test.service.stale = test.service.profile_signature != profile || test.service.configuration_hash != filehash('/etc/config/podkop');
+            delete test.service.profile_signature;
+        }
+        // Profile signatures contain private outbound data. Never return them through RPC.
+        delete test.latency_profile_signature; delete test.profile_signature;
         return { id: n.id, name: n.name, selected: n.id == status.selected_id, test };
     });
     status.busy = fs.stat(TMP + '/lock') != null;
@@ -692,6 +704,12 @@ function task_log(result) {
         run(['logger', '-t', 'podkop-tools', sprintf('task=%s result=%s state=%s servers=%d pending=%s',
             ARGV[0], result, s.state ?? 'unknown', length(state.nodes ?? []), fs.stat(BASE + '/pending.json') ? 'yes' : 'no')]);
     } catch (e) { /* Diagnostics cannot turn a committed operation into a failure. */ }
+}
+
+function measurement_finished(kind, id, error) {
+    if (index(['latency', 'service', 'speed'], kind) < 0) return;
+    let previous = load(TMP + '/status.json', {}).measurement;
+    status_update({ measurement: { sequence: (previous?.sequence ?? 0) + 1, kind, id, ok: !error, error } });
 }
 
 let command = ARGV[0], id = ARGV[1];
@@ -736,6 +754,7 @@ try {
     else if (command == 'rollback') { rollback(); fs.unlink(BASE + '/transaction.json'); }
     else die('invalid_command');
     stop_probe();
+    measurement_finished(command, id, null);
     task_log('ok');
     print('{"ok":true}\n');
 } catch (e) {
@@ -750,6 +769,7 @@ try {
     status_update({ state: 'error', error: code });
     if (command == 'fetch' || command == 'check') status_update({ fetch_error: code });
     if (command == 'due' || command == 'apply') status_update({ apply_blocked_reason: code, last_apply_error: code });
+    measurement_finished(command, id, code);
     task_log(code);
     print(sprintf('%J\n', { ok: false, error: code })); exit(1);
 }

@@ -336,7 +336,10 @@ def main():
         write('/etc/iproute2/rt_tables','255 local\n254 main\n253 default\n105 podkop\n')
         # NTP/sysclock is not part of these tests and must not touch the host clock.
         dex('rm','-f','/usr/sbin/ntpd');write('/usr/sbin/ntpd','#!/bin/sh\nexit 0\n');dex('chmod','755','/usr/sbin/ntpd')
-        links=[f'vless://{UUID}@{exit_ip}:{port}?encryption=none&type=tcp&security=none#{name}' for name,port in [('Швеция',14501),('Латвия',14502),('Германия',14503)]]
+        pairs=[('Швеция',14501),('Латвия',14502),('Германия',14503)]
+        if '--baseline' in sys.argv:
+            pairs += [(name,14510+i) for i,name in enumerate(['Нидерланды','Финляндия','Франция','США','Великобритания','Польша','Эстония','Литва'])]
+        links=[f'vless://{UUID}@{exit_ip}:{port}?encryption=none&type=tcp&security=none#{name}' for name,port in pairs]
         podkop="config settings 'settings'\n"
         for key,value in {'dns_type':'udp','dns_server':gateway+':'+str(dns_port),'bootstrap_dns_server':gateway,'service_listen_address':'127.0.0.1','dont_touch_dhcp':'1','config_path':'/etc/sing-box/config.json','cache_path':'/tmp/sing-box/cache.db','enable_yacd':'0','update_interval':'1d','log_level':'warn'}.items():podkop+=f" option {key} '{value}'\n"
         podkop+="config section 'main'\n option connection_type 'proxy'\n option proxy_config_type 'selector'\n option mixed_proxy_enabled '1'\n option mixed_proxy_port '2080'\n option user_domain_list_type 'dynamic'\n list user_domains 'chatgpt.com'\n"
@@ -352,8 +355,10 @@ def main():
         uci('podkop_tools.main.speed_url',endpoint+'/download?bytes={bytes}')
         uci('podkop_tools.main.bootstrap_dns',gateway);uci('podkop_tools.main.bootstrap_port',dns_port)
         task('seed');initial_pid=pid();initial_hash=fingerprint()
-        record('native_stock_MAIN_seeded',public()['count']==3)
-        if '--baseline' in sys.argv: return
+        record('native_stock_MAIN_seeded',public()['count']==len(pairs))
+        if '--baseline' in sys.argv:
+            task('select',next(n['id'] for n in public()['nodes'] if n['name']=='Латвия'))
+            return
         if '--ownership' in sys.argv:
             import ownership
             ownership.l = sys.modules[__name__]
@@ -461,8 +466,21 @@ def main():
         dex('rm','-f','/tmp/podkop-tools/last_speed.json');uci('podkop_tools.main.speed_bytes',1048576);uci('podkop_tools.main.speed_seconds',6)
         task('speed',selected);test=next(n['test'] for n in public()['nodes'] if n['id']==selected)
         record('byte_limit_independent_of_time_limit',test.get('mbps',0)>0 and test['bytes']==1048576 and test['seconds']<6 and test['limit']=='bytes')
+        # Diagnostics bind each metric to the accepted profile, despite stable ID reuse.
+        task('latency',selected);task('service',selected)
+        current=public();record('diagnostic_receipt_and_configured_budget',current['measurement']['kind']=='service' and current['measurement']['id']==selected and current['speed_bytes']==1048576 and current['speed_next_at']>time.time())
+        original=json.loads(dex('cat','/etc/podkop-tools/state.json').stdout);mutated=copy.deepcopy(original)
+        next(n for n in mutated['nodes'] if n['id']==selected)['outbound']['server_port']=14999
+        before=fingerprint();old_pid=pid();write_signed_state(mutated)
+        measured=next(n['test'] for n in public()['nodes'] if n['id']==selected)
+        record('same_ID_changed_profile_marks_all_metrics_stale',measured['latency_stale'] and measured['speed_stale'] and measured['service']['stale'])
+        write_signed_state(original)
+        measured=next(n['test'] for n in public()['nodes'] if n['id']==selected)
+        record('unchanged_profile_metrics_current_without_reload',not measured['latency_stale'] and not measured['speed_stale'] and not measured['service']['stale'] and fingerprint()==before and pid()==old_pid)
+        seq=public()['measurement']['sequence'];out=task('speed',selected,check=False)
+        receipt=public()['measurement'];record('cooldown_failure_has_completion_receipt',not out['ok'] and receipt['sequence']==seq+1 and receipt['error']=='speed_cooldown')
         task('restore');record('boot_restore_keeps_selected_ID',public()['selected_id']==selected)
-        record('public_status_no_subscription_credentials',TOKEN not in json.dumps(public()) and 'subscription_url' not in public())
+        record('public_status_no_subscription_credentials',TOKEN not in json.dumps(public()) and UUID not in json.dumps(public()) and 'profile_signature' not in json.dumps(public()) and 'subscription_url' not in public())
         # Durable transaction recovery uses the actual previous snapshot/native reload.
         task('rollback');record('explicit_rollback_restores_previous_MAIN',public()['selected_id']==selected and public()['count']==3)
         # Inject one native reload failure after commit; subsequent rollback is real.
