@@ -1,0 +1,31 @@
+#!/bin/sh
+# SPDX-License-Identifier: GPL-2.0-only
+# One slot in the shared diagnostic queue; no accepted-state writes here.
+set -eu
+umask 077
+job=/tmp/podkop-tools/job
+exec 8>"$job/queue.lock"
+read -r total < "$job/queue.total"
+read -r deadline < "$job/deadline"
+read -r token < "$job/batch-token"
+cancel=/tmp/podkop-tools/cancel-$token
+while :; do
+    [ ! -f "$cancel" ] || break
+    read -r uptime rest < /proc/uptime
+    [ "${uptime%%.*}" -lt "$deadline" ] || break
+    flock 8
+    read -r next < "$job/queue.next"
+    if [ "$next" -ge "$total" ] || [ -f "$cancel" ]; then
+        flock -u 8
+        break
+    fi
+    printf '%s\n' "$((next + 1))" > "$job/queue.next"
+    read -r key < "$job/queue-$next"
+    flock -u 8
+    code=0
+    case "$key" in *-speed) date +%s > "$job/$key.started" ;; esac
+    /usr/bin/curl --disable --config "$job/$key.cfg" > "$job/$key.metrics" 2>/dev/null || code=$?
+    printf '%s\n' "$code" > "$job/$key.code"
+    # A single short write lets the parent consume completions in any order.
+    printf '%s\n' "$key"
+done

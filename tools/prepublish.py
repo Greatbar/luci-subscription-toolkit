@@ -162,7 +162,7 @@ def main():
                 if (output/name).read_bytes() != (release/name).read_bytes():
                     raise SecurityError('release bytes mismatch: '+name)
             report.update(apk_sha256=hashlib.sha256(artifact.read_bytes()).hexdigest(),
-                          release_files=sorted((APK_NAME, SOURCE_NAME, 'SHA256SUMS')), payload_files=19)
+                          release_files=sorted((APK_NAME, SOURCE_NAME, 'SHA256SUMS')), payload_files=len(json.loads(snapshot.files['tools/payload.json'][0])))
             receipt = ROOT/'.build/prepublish.json'
             receipt.parent.mkdir(exist_ok=True)
             receipt.write_text(json.dumps(report, indent=2)+'\n')

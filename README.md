@@ -1,4 +1,4 @@
-# LuCI Subscription Toolkit — 0.1.0-r6
+# LuCI Subscription Toolkit — v0.1.0 Experimental (0.1.0-r6)
 
 An independent LuCI extension for subscription management and VLESS measurements.
 Compatible with **Podkop 0.7.22**. This is not an official Podkop product and is
@@ -11,12 +11,25 @@ not affiliated with its maintainers. [Русский](README.ru.md).
 - Preserve user domains and independent settings during apply and rollback.
 - Finite cron jobs for fetch, health and deferred apply. No permanent controller.
   Automation starts disabled; normal apply defaults to manual confirmation.
-- Clash API latency, bounded throughput and strict HTTPS service checks using a
-  temporary sing-box process. Measurements do not switch MAIN.
+- Batch HTTPS latency, bounded throughput and strict Telegram Web checks using
+  one temporary sing-box process. Up to eight light probes run concurrently;
+  throughput probes run sequentially without fixed pauses between servers.
+  Measurements do not switch MAIN. Full 4 MiB downloads below 0.5 seconds remain
+  numeric and are marked as short samples.
 - Private subscription URL and state. Public RPC excludes URLs, server addresses,
   UUIDs and keys. The masked URL field writes outside the shared LuCI UCI queue.
 
 ## Compatibility
+
+**Experimental: the public APK has not yet been tested on a real router with
+the official sing-box init script.** The required public compatibility profile
+below is not a hardware installation certification. Earlier isolated OpenWrt
+tests covered this profile; the latest batch changes received focused checks.
+
+All three checks for 11 servers completed in **22.7 seconds** on a Xiaomi Redmi
+Router AX6S with OpenWrt 25.12.5, Podkop 0.7.22 and sing-box 1.14.2. This measured
+a local installation with a different init-script fingerprint, not the public
+APK. It does not establish compatibility with the official init on hardware.
 
 The checked profile uses **OpenWrt 25.12.5**, APK, **Podkop 0.7.22** and
 **sing-box 1.14.2** with uTLS/Clash API and the official OpenWrt procd init script
@@ -81,13 +94,14 @@ in Russian; the English documentation does not imply an English UI translation.
 
 The Servers page refreshes public status without importing or applying changes.
 The check panel and per-row Test button run the checked diagnostics; More opens
-individual tests. Checks run sequentially for all accepted servers or the active
-server. Stop discards the remaining queue after the current bounded probe cleans
+individual tests. A single backend batch checks all accepted servers or the active
+server. Stop cancels further dispatch and waits for active bounded probes to clean
 up. Speed checks require consent to the total configured traffic cap. Different
-servers run without a fixed pause; repeat speed tests of the same stable ID wait
-60 seconds between starts. The queue waits for background tasks to release the
-backend. Stale measurements are marked; technical data is
-under Details. Pending candidates are excluded from this panel.
+servers run without a fixed pause; repeated speed probes of the same stable ID
+within 60 seconds are skipped with an explicit cooldown result. A busy backend
+rejects the batch rather than silently losing it. Latency, speed and Telegram Web
+availability remain independent; stale measurements are marked. Technical data
+is under Details. Pending candidates are excluded from this panel.
 
 1. Enter an HTTPS subscription URL in settings. An empty replacement field keeps
    the existing URL. Redirects and URL userinfo are rejected; TLS is verified.

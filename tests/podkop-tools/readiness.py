@@ -24,7 +24,7 @@ with tempfile.TemporaryDirectory() as tmp:
  prefix=(source/'usr/libexec/podkop-tools/backend.uc').read_text().split('let command = ARGV')[0]
  (tmp/'test.uc').write_text(prefix+'''\nlet success=false;try{ start_probe({type:'direct'});success=true;}catch(e){}stop_probe();if(!success)die('readiness_failed_with_integer_only_sleep');print('PASS integer-only sleep readiness and cleanup\\n');\n''')
  (tmp/'sleep').write_text('#!/bin/sh\ncase "$*" in *.*) echo fractional_sleep_rejected >/tmp/fractional-sleep-rejected; exit 1;; esac\nexec /bin/busybox sleep "$@"\n')
- (tmp/'timeout').write_text('#!/bin/sh\nif [ "$*" = "-s TERM 40 /usr/bin/sing-box run -c /tmp/podkop-tools/job/probe.json" ]; then /bin/sleep 1; fi\nexec /usr/bin/timeout-podkop-test-original "$@"\n')
+ (tmp/'timeout').write_text('#!/bin/sh\nif [ "$*" = "-s TERM 240 /usr/bin/sing-box run -c /tmp/podkop-tools/job/probe.json" ]; then /bin/sleep 1; fi\nexec /usr/bin/timeout-podkop-test-original "$@"\n')
  run('mv','/bin/sleep','/bin/sleep-podkop-test-original');run('mv','/usr/bin/timeout','/usr/bin/timeout-podkop-test-original')
  try:
   copy(tmp/'sleep','/bin/sleep');copy(tmp/'timeout','/usr/bin/timeout');copy(tmp/'test.uc','/tmp/integer-sleep-readiness.uc')

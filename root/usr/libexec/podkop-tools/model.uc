@@ -124,8 +124,10 @@ function sample(metrics, result, cap, min_bytes, min_seconds) {
     if (+metrics.http_code != 200) return { error: 'unexpected_http_status' };
     if (index([0, 28, 63], result) < 0) return { error: 'transfer_failed' };
     if (bytes > cap || body <= 0) return { error: 'invalid_sample' };
-    if (bytes < min_bytes || body < min_seconds) return { error: 'insufficient_sample', bytes, seconds: body };
+    let complete = result == 0 && bytes == cap;
+    if (bytes < min_bytes || (body < min_seconds && !complete)) return { error: 'insufficient_sample', bytes, seconds: body };
     return { mbps: bytes * 8.0 / body / 1000000.0, bytes, seconds: body,
+        short_sample: body < min_seconds,
         limit: result == 28 ? 'time' : result == 63 || bytes == cap ? 'bytes' : 'complete' };
 }
 

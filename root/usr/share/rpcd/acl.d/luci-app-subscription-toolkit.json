@@ -24,6 +24,8 @@
           "speed",
           "latency",
           "service",
+          "batch",
+          "cancel",
           "schedule",
           "source"
         ]

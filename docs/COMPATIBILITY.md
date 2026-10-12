@@ -26,3 +26,12 @@ contains neither Podkop nor sing-box binaries or init scripts.
 Для production нужен отдельно подготовленный пакет sing-box 1.14.2 с указанным
 официальным init и необходимыми build tags. Обычный feed 25.12.5 с 1.13.21
 не подходит. Расширение не устанавливает и не заменяет зависимости скрыто.
+
+## Experimental hardware validation limit
+
+The public APK has not yet been tested on a real router with the official
+sing-box init script. The 22.7-second result for all three checks on 11 servers
+comes from a local AX6S installation with a different init fingerprint. Earlier
+OpenWrt lab coverage and focused batch checks do not certify public-APK hardware
+installation. Required versions remain OpenWrt 25.12.5, Podkop 0.7.22 and
+sing-box 1.14.2 with the pinned official init and uTLS/Clash API support.

@@ -4,7 +4,7 @@ import { cursor } from 'uci';
 import { canonical, parse_provider, reconcile, plan, proxy_uri, encode, decode, sample, service_sample, deferred_gate } from '/usr/libexec/podkop-tools/model.uc';
 
 const BASE = '/etc/podkop-tools', TMP = '/tmp/podkop-tools', JOB = TMP + '/job';
-let ctx = cursor(), probe_pid = null;
+let ctx = cursor(), probe_pid = null, batch_request = null;
 function q(v) { return "'" + replace('' + v, /'/g, "'\\''") + "'"; }
 function run(args) {
     let proc = fs.popen(join(' ', map(args, q)) + ' 9>&- 2>/dev/null', 'r');
@@ -223,38 +223,54 @@ function write_main(source, expected) {
     } catch (e) { file.close(); die(e.message); }
     file.close();
 }
+function probe_port_open(port) {
+    let address = sprintf(':%04X', port);
+    for (let line in split(fs.readfile('/proc/net/tcp') ?? '', '\n')) {
+        let fields = split(trim(line), /[[:space:]]+/);
+        if (fields[3] == '0A' && substr(fields[1] ?? '', -5) == address) return true;
+    }
+    return false;
+}
 function stop_probe() {
     if (probe_pid) {
         // Only our deadline process; timeout forwards TERM to its own child.
         run(['/bin/kill', '-TERM', '' + probe_pid]); probe_pid = null;
-        for (let i = 0; i < 6; i++) {
-            if (run(['/bin/sh', '-c', 'awk \'$2 ~ /:4206$/ && $4 == "0A" {found=1} END {exit !found}\' /proc/net/tcp']).code != 0) break;
-            must(['/bin/sleep', '1'], 'probe_start_failed');
+        for (let i = 0; i < 80; i++) {
+            if (!probe_port_open(16902)) break;
+            sleep(25);
         }
     }
 }
-function start_probe(outbound) {
+function start_probe_set(outbounds) {
     stop_probe();
-    if (run(['/bin/sh', '-c', 'awk \'$2 ~ /:4206$/ && $4 == "0A" {found=1} END {exit !found}\' /proc/net/tcp']).code == 0) die('probe_start_failed');
+    for (let i = 0; i < length(outbounds); i++) if (probe_port_open(16902 + i)) die('probe_start_failed');
     let bootstrap = cfg('bootstrap_dns', '77.88.8.8');
     if (!match(bootstrap, /^([0-9]{1,3}\.){3}[0-9]{1,3}$/)) die('invalid_settings');
-    let out = json(sprintf('%J', outbound)); out.tag = 'probe-out'; out.routing_mark = 2097152;
+    let outputs = [], inbounds = [], rules = [];
+    for (let i = 0; i < length(outbounds); i++) {
+        let out = json(sprintf('%J', outbounds[i]));
+        if (out.detour || (out.type != 'vless' && !(length(outbounds) == 1 && out.type == 'direct'))) die('invalid_settings');
+        out.tag = 'probe-out-' + i; out.routing_mark = 2097152;
+        push(outputs, out);
+        push(inbounds, { type: 'mixed', tag: 'probe-in-' + i, listen: '127.0.0.1', listen_port: 16902 + i });
+        push(rules, { inbound: ['probe-in-' + i], action: 'route', outbound: out.tag });
+    }
     let config = { log: { disabled: true }, dns: { servers: [{ type: 'udp', tag: 'bootstrap', server: bootstrap, server_port: number('bootstrap_port', 53, 1, 65535) }], final: 'bootstrap' },
-        inbounds: [{ type: 'mixed', tag: 'probe-in', listen: '127.0.0.1', listen_port: 16902 }], outbounds: [out],
-        route: { final: 'probe-out', default_domain_resolver: 'bootstrap' } };
+        inbounds, outbounds: outputs, route: { rules, final: outputs[0].tag, default_domain_resolver: 'bootstrap' } };
     save(JOB + '/probe.json', config);
     must(['/usr/bin/sing-box', 'check', '-c', JOB + '/probe.json'], 'validation_failed');
-    let result = run(['/bin/sh', '-c', 'timeout -s TERM 40 /usr/bin/sing-box run -c /tmp/podkop-tools/job/probe.json >/dev/null 2>&1 & echo $!']);
+    let result = run(['/bin/sh', '-c', 'timeout -s TERM 240 /usr/bin/sing-box run -c /tmp/podkop-tools/job/probe.json >/dev/null 2>&1 & echo $!']);
     probe_pid = int(trim(result.out));
     if (!probe_pid || probe_pid < 2) die('probe_start_failed');
     fs.writefile(JOB + '/probe.pid', '' + probe_pid);
-    for (let i = 0; i < 6; i++) {
-        if (run(['/bin/sh', '-c', 'awk \'$2 ~ /:4206$/ && $4 == "0A" {found=1} END {exit !found}\' /proc/net/tcp']).code == 0) return 'http://127.0.0.1:16902';
+    for (let i = 0; i < 160; i++) {
+        if (probe_port_open(16902 + length(outbounds) - 1)) return 'http://127.0.0.1:16902';
         if (!fs.stat('/proc/' + probe_pid)) die('probe_start_failed');
-        must(['/bin/sleep', '1'], 'probe_start_failed');
+        sleep(25);
     }
     die('probe_start_failed');
 }
+function start_probe(outbound) { return start_probe_set([outbound]); }
 function get_through(outbound, url, file, seconds, cap) {
     let proxy = start_probe(outbound);
     let result = curl_request(url, proxy, file, seconds, cap);
@@ -620,6 +636,7 @@ function speed(id) {
         result = sample(response.metrics, response.code, cap, 262144, 0.5);
     } catch (e) { stop_probe(); result = { error: 'speed_failed' }; }
     result.at = time(); result.profile_signature = canonical(node.outbound);
+    for (let field in ['mbps', 'bytes', 'seconds', 'limit', 'short_sample', 'error']) delete old[field];
     for (let k, v in result) old[k] = v;
     if (!result.error) delete old.error;
     else delete old.mbps;
@@ -662,12 +679,157 @@ function latency(id) {
     item.latency_profile_signature = canonical(state.nodes[position].outbound);
     item.latency_at = time(); tests[id] = item; save(TMP + '/tests.json', tests);
 }
+function service_contract() {
+    let endpoint = cfg('service_url', 'https://web.telegram.org/k/'); check_url(endpoint);
+    let expected = number('service_status', 200, 200, 299), mime = cfg('service_content_type', 'text/html');
+    let markers = cfg('service_markers', ['<title>Telegram Web</title>', 'content="https://web.telegram.org/k/"', '<script type="module"']);
+    if (type(markers) != 'array' || !length(markers) || length(markers) > 8 ||
+        !length(mime) || length(mime) > 128 || match(mime, /[[:space:][:cntrl:]]/)) die('invalid_settings');
+    for (let marker in markers) if (type(marker) != 'string' || !length(marker) || length(marker) > 512) die('invalid_settings');
+    return { endpoint, expected, mime, markers };
+}
+function batch_receipt(receipt) {
+    save(TMP + '/batch-' + receipt.token + '.json', receipt);
+    status_update({ batch: receipt, state: 'batch_' + receipt.state, error: receipt.error ?? null });
+}
+function batch_curl(key, proxy, url, seconds, cap, body) {
+    check_url(url);
+    let content = 'url = ' + curl_escape(url) + '\nproxy = ' + curl_escape(proxy) + '\nnoproxy = ""\n' +
+        'silent\nproto = "=https"\nproto-redir = "=https"\nmax-redirs = 0\nconnect-timeout = 3\n' +
+        'max-time = ' + seconds + '\nmax-filesize = ' + cap + '\nheader = "Accept-Encoding: identity"\n' +
+        'output = ' + curl_escape(body) + '\nwrite-out = "%{json}"\n';
+    if (fs.writefile(JOB + '/' + key + '.cfg', content) == null || !fs.chmod(JOB + '/' + key + '.cfg', 0600)) die('state_write_failed');
+}
+function batch_pool(jobs, slots, consume) {
+    if (!length(jobs) || fs.stat(TMP + '/cancel-' + batch_request.token)) return;
+    for (let i = 0; i < length(jobs); i++) fs.writefile(JOB + '/queue-' + i, jobs[i].key + '\n');
+    fs.writefile(JOB + '/queue.next', '0\n'); fs.writefile(JOB + '/queue.total', length(jobs) + '\n');
+    let command = 'set --; trap \'kill "$@" 2>/dev/null; wait; exit 1\' TERM INT; ';
+    for (let i = 0; i < slots; i++) command += '/usr/libexec/podkop-tools/probe-worker & set -- "$@" "$!"; ';
+    command += 'wait';
+    let proc = fs.popen('/bin/sh -c ' + q(command) + ' 9>&- 2>/dev/null', 'r');
+    if (!proc) die('process_failed');
+    let by_key = {}; for (let job in jobs) by_key[job.key] = job;
+    let line;
+    try {
+        while ((line = proc.read('line')) != null) {
+            let job = by_key[trim(line)]; if (!job) continue;
+            let metrics;
+            try { metrics = load(JOB + '/' + job.key + '.metrics', {}); } catch (e) { metrics = {}; }
+            consume(job, metrics, int(trim(fs.readfile(JOB + '/' + job.key + '.code') ?? '1')));
+            delete by_key[job.key];
+        }
+    } catch (e) {
+        // Stop dispatch and reap active slots before task cleanup removes files.
+        fs.writefile(TMP + '/cancel-' + batch_request.token, '');
+        proc.read('all'); proc.close();
+        die(e.message);
+    }
+    let code = proc.close();
+    let cancelled = fs.stat(TMP + '/cancel-' + batch_request.token);
+    let deadline = int(trim(fs.readfile(JOB + '/deadline')));
+    if (!cancelled && (code || (length(keys(by_key)) && int(split(fs.readfile('/proc/uptime'), ' ')[0]) < deadline))) die('batch_failed');
+    return length(keys(by_key));
+}
+function batch(request) {
+    if (type(request.ids) != 'array' || !length(request.ids) || length(request.ids) > 128 ||
+        type(request.kinds) != 'array' || !length(request.kinds) || length(request.kinds) > 3) die('invalid_settings');
+    let seen = {};
+    for (let id in request.ids) {
+        if (type(id) != 'string' || !match(id, /^[a-f0-9]{64}$/) || seen[id]) die('invalid_settings');
+        seen[id] = true;
+    }
+    seen = {};
+    for (let kind in request.kinds) {
+        if (index(['latency', 'service', 'speed'], kind) < 0 || seen[kind]) die('invalid_settings');
+        seen[kind] = true;
+    }
+    let cap = number('speed_bytes', 4194304, 262144, 16777216);
+    if (seen.speed && request.speed_bytes != cap) die('speed_cap_changed');
+    let state = state_seed(); actual_selection(state);
+    let nodes = map(request.ids, id => filter(state.nodes, n => n.id == id)[0]);
+    for (let node in nodes) if (!node) die('unknown_node');
+    let memory = match(fs.readfile('/proc/meminfo'), /MemAvailable:[[:space:]]+([0-9]+)/);
+    if (!memory || +memory[1] < 32768 || +split(fs.readfile('/proc/loadavg'), ' ')[0] > 4) die('router_busy');
+    let contract = seen.service ? service_contract() : null;
+    let health_url = cfg('health_url', 'https://www.gstatic.com/generate_204'); check_url(health_url);
+    let speed_url = replace(cfg('speed_url', 'https://speed.cloudflare.com/__down?bytes={bytes}'), '{bytes}', '' + cap);
+    if (seen.speed) check_url(speed_url);
+    let configuration_hash = seen.service ? filehash('/etc/config/podkop') : null;
+    let tests = load(TMP + '/tests.json', {}), jobs = [], speed_jobs = [], completed = {}, errors = {};
+    let receipt = { token: request.token, state: 'running', done: 0, total: length(nodes), started_at: time(), errors };
+    fs.writefile(JOB + '/batch-token', request.token + '\n');
+    let deadline = int(split(fs.readfile('/proc/uptime'), ' ')[0]) + 210;
+    fs.writefile(JOB + '/deadline', deadline + '\n');
+    batch_receipt(receipt);
+    for (let i = 0; i < length(nodes); i++) {
+        let node = nodes[i], proxy = 'http://127.0.0.1:' + (16902 + i);
+        completed[node.id] = 0;
+        for (let kind in request.kinds) {
+            let job = { key: i + '-' + kind, kind, node };
+            if (kind == 'speed') {
+                let prior = tests[node.id]?.speed_started_at ?? tests[node.id]?.at ?? 0;
+                if (time() - prior < 60) {
+                    errors[node.id] ??= {}; errors[node.id].speed = 'speed_cooldown'; completed[node.id]++;
+                    continue;
+                }
+                batch_curl(job.key, proxy, speed_url, number('speed_seconds', 6, 2, 15), cap, '/dev/null');
+                push(speed_jobs, job);
+            } else if (kind == 'service') {
+                batch_curl(job.key, proxy, contract.endpoint, 8, 524288, JOB + '/' + job.key + '.body'); push(jobs, job);
+            } else {
+                batch_curl(job.key, proxy, health_url, 5, 65536, '/dev/null'); push(jobs, job);
+            }
+        }
+    }
+    let consume = (job, metrics, code) => {
+        let node = job.node, item = tests[node.id] ?? {}, result;
+        if (job.kind == 'latency') {
+            if (code == 0 && +metrics.http_code == 204 && +metrics.time_total > 0) {
+                item.latency = int(+metrics.time_total * 1000); delete item.latency_error;
+            } else { delete item.latency; item.latency_error = 'latency_failed'; }
+            item.latency_profile_signature = canonical(node.outbound); item.latency_at = time();
+        } else if (job.kind == 'service') {
+            result = service_sample(metrics, code, fs.readfile(JOB + '/' + job.key + '.body', 524289) ?? '', contract.expected, contract.mime, contract.markers);
+            result.at = time(); result.configuration_hash = configuration_hash; result.profile_signature = canonical(node.outbound);
+            item.service = result; fs.unlink(JOB + '/' + job.key + '.body');
+        } else {
+            result = sample(metrics, code, cap, 262144, 0.5);
+            for (let field in ['mbps', 'bytes', 'seconds', 'limit', 'short_sample', 'error']) delete item[field];
+            for (let field, value in result) item[field] = value;
+            item.at = time(); item.profile_signature = canonical(node.outbound);
+        }
+        tests[node.id] = item; save(TMP + '/tests.json', tests);
+        completed[node.id]++;
+        receipt.done = length(filter(nodes, n => completed[n.id] == length(request.kinds)));
+        batch_receipt(receipt);
+    };
+    let missing = 0;
+    if (length(jobs) || length(speed_jobs)) {
+        start_probe_set(map(nodes, n => n.outbound));
+        missing += batch_pool(jobs, 8, consume) ?? length(jobs);
+        // Stamp only speed attempts that are actually dispatched, in the worker.
+        missing += batch_pool(speed_jobs, 1, (job, metrics, code) => {
+            let item = tests[job.node.id] ?? {};
+            item.speed_started_at = int(trim(fs.readfile(JOB + '/' + job.key + '.started') ?? '' + time()));
+            tests[job.node.id] = item; consume(job, metrics, code);
+        }) ?? length(speed_jobs);
+    }
+    stop_probe();
+    receipt.done = length(filter(nodes, n => completed[n.id] == length(request.kinds)));
+    receipt.state = fs.stat(TMP + '/cancel-' + batch_request.token) ? 'cancelled' : missing ? 'failed' : 'finished';
+    receipt.error = missing && receipt.state != 'cancelled' ? 'batch_timeout' : null;
+    receipt.finished_at = time(); batch_receipt(receipt);
+}
 function public_status() {
     let state = load(BASE + '/state.json', {}), pending = load(BASE + '/pending.json'), status = load(TMP + '/status.json', {}), tests = load(TMP + '/tests.json', {});
     status.compatible = true;
     try { implementation_compatible(); } catch (e) { status.compatible = false; status.error = 'incompatible'; }
     status.subscription_configured = !!ctx.get('podkop_tools_subscription', 'main', 'url');
     status.speed_bytes = number('speed_bytes', 4194304, 262144, 16777216);
+    let service_url = cfg('service_url', 'https://web.telegram.org/k/');
+    status.service_name = match(service_url, /^https:\/\/web\.telegram\.org\//) ? 'Telegram Web' : match(service_url, /^https:\/\/([^\/]+)/)?.[1] ?? 'Проверка HTTPS';
+    if (match(ARGV[1] ?? '', /^[a-f0-9]{64}$/)) status.batch = load(TMP + '/batch-' + ARGV[1] + '.json');
     status.speed_next_at = 0; // Retained RPC field: there is no global speed cooldown.
     status.enabled = cfg('enabled', '0') == '1'; status.selected_id = state.selected_id; status.last_apply = state.last_apply;
     status.pending = pending != null; status.count = length(state.nodes ?? []); status.pending_count = length(pending?.nodes ?? []);
@@ -684,6 +846,7 @@ function public_status() {
         if (chosen) status.selected_id = chosen;
     } catch (e) { status.runtime_available = false; }
     if (status.control && status.control.selected_id != status.selected_id) status.control = null;
+    let service_configuration_hash = length(filter(state.nodes ?? [], n => tests[n.id]?.service != null)) ? filehash('/etc/config/podkop') : null;
     status.nodes = map(state.nodes ?? [], n => {
         let test = json(sprintf('%J', tests[n.id] ?? {}));
         let speed_started = test.speed_started_at ?? test.at ?? 0;
@@ -692,7 +855,7 @@ function public_status() {
         test.latency_stale = test.latency_profile_signature != profile;
         test.speed_stale = test.profile_signature != profile;
         if (test.service) {
-            test.service.stale = test.service.profile_signature != profile || test.service.configuration_hash != filehash('/etc/config/podkop');
+            test.service.stale = test.service.profile_signature != profile || test.service.configuration_hash != service_configuration_hash;
             delete test.service.profile_signature;
         }
         // Profile signatures contain private outbound data. Never return them through RPC.
@@ -722,6 +885,10 @@ let command = ARGV[0], id = ARGV[1];
 let source_payload = command == 'source' ? fs.stdin.read(8193) : null;
 try {
     if (command == 'status') { print(sprintf('%J\n', public_status())); exit(0); }
+    if (command == 'batch') {
+        try { batch_request = json(id); } catch (e) { die('invalid_settings'); }
+        if (type(batch_request?.token) != 'string' || !match(batch_request.token, /^[a-f0-9]{64}$/)) die('invalid_settings');
+    }
     if (index(['check', 'health', 'due'], command) >= 0 && cfg('enabled', '0') != '1') { print('{"ok":true,"disabled":true}\n'); exit(0); }
     if (command == 'migrate' && fs.stat(BASE + '/transaction.json')) die('recovery_required');
     if (fs.stat(BASE + '/transaction.json')) {
@@ -752,6 +919,7 @@ try {
     else if (command == 'speed') speed(id);
     else if (command == 'latency') latency(id);
     else if (command == 'service') service(id);
+    else if (command == 'batch') batch(batch_request);
     else if (command == 'restore') {
         let state = load(BASE + '/state.json');
         if (state) { actual_selection(state); select_node(state, state.selected_id, 'restored'); }
@@ -769,9 +937,10 @@ try {
         'uci_changed', 'uci_changed_after_write', 'uci_busy', 'recovery_conflict', 'recovery_required', 'invalid_url', 'invalid_settings', 'unknown_node', 'validation_failed', 'generation_failed', 'generated_nodes_mismatch', 'routing_changed',
         'subscription_unavailable_or_invalid', 'fallback_not_verified', 'ambiguous_identity', 'unrepresentable_stock_uri',
         'apply_rolled_back', 'rollback_failed', 'rollback_unavailable', 'selection_changed', 'speed_cooldown', 'router_busy', 'probe_start_failed',
-        'pending_changed', 'pending_expired', 'selected_endpoint_unreachable'];
+        'pending_changed', 'pending_expired', 'selected_endpoint_unreachable', 'batch_failed', 'speed_cap_changed'];
     let code = index(known, e.message) >= 0 ? e.message : 'operation_failed';
     status_update({ state: 'error', error: code });
+    if (batch_request?.token && match(batch_request.token, /^[a-f0-9]{64}$/)) batch_receipt({ token: batch_request.token, state: 'failed', done: 0, total: length(batch_request.ids ?? []), error: code });
     if (command == 'fetch' || command == 'check') status_update({ fetch_error: code });
     if (command == 'due' || command == 'apply') status_update({ apply_blocked_reason: code, last_apply_error: code });
     measurement_finished(command, id, code);

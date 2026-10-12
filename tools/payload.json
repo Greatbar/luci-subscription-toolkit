@@ -3,7 +3,7 @@
     "source": "htdocs/luci-static/resources/view/podkop-tools/dashboard.js",
     "target": "www/luci-static/resources/view/podkop-tools/dashboard.js",
     "mode": 420,
-    "sha256": "76eea1ff8f37481b7659e447862064ff2a615c5682cf574526fe69615a43252a"
+    "sha256": "e96cd07e60d5e7da7897a5c0bca76d6edd9a42e5e745a195af2c5e9763efc862"
   },
   {
     "source": "htdocs/luci-static/resources/view/podkop-tools/settings.js",
@@ -39,7 +39,7 @@
     "source": "root/usr/libexec/podkop-tools/backend.uc",
     "target": "usr/libexec/podkop-tools/backend.uc",
     "mode": 420,
-    "sha256": "5fcbf7a5d0cf2cdd20a6d408369424c76c8579387a4ab9265aa818fde87447d7"
+    "sha256": "6ea1693115efa1c5c31eca276e50a439fd5db796c68d33fcb1a71c5323d340e3"
   },
   {
     "source": "root/usr/libexec/podkop-tools/boot",
@@ -57,19 +57,19 @@
     "source": "root/usr/libexec/podkop-tools/model.uc",
     "target": "usr/libexec/podkop-tools/model.uc",
     "mode": 420,
-    "sha256": "86108510fbc34bc60b2ce9c0e389eb5d081e4e06e277c188eb33bec1d1f63c86"
+    "sha256": "785acac128eca37f081c02f3cfa5b03dac0b64faf25ee44942fee0eb50031204"
   },
   {
     "source": "root/usr/libexec/podkop-tools/task",
     "target": "usr/libexec/podkop-tools/task",
     "mode": 493,
-    "sha256": "2dd5eede2ec44be3ab16c16091606880539957f61aab3b036bb87c6e8712a5c4"
+    "sha256": "5c52999d13432d02cb5c1c0482d4ddf5e53beffe0972307a9b55fa810b1116a3"
   },
   {
     "source": "root/usr/libexec/rpcd/podkop-tools",
     "target": "usr/libexec/rpcd/podkop-tools",
     "mode": 493,
-    "sha256": "f2d33fc6c78c3f30c46eed3ba4236e21b2d41f62c7c4f3aea6108ce6439dfe43"
+    "sha256": "d2d7cad7fca2d063575e151be8c34e699964f94f90e84d2224866ab733e681ed"
   },
   {
     "source": "root/usr/share/luci/menu.d/luci-app-subscription-toolkit.json",
@@ -87,7 +87,7 @@
     "source": "root/usr/share/rpcd/acl.d/luci-app-subscription-toolkit.json",
     "target": "usr/share/rpcd/acl.d/luci-app-subscription-toolkit.json",
     "mode": 420,
-    "sha256": "0c6e1d19e52cf05084d5ee3f3b4ca30c4855f7e8b97aa84f1f027acf64049bb1"
+    "sha256": "7c7eda0d1eed5a0d84f3af04549bf2e25fb30c33caab74600e31b17822e3a3a1"
   },
   {
     "source": "root/usr/share/subscription-toolkit/LICENSE",
@@ -112,5 +112,11 @@
     "target": "usr/share/podkop-tools/pre-deinstall",
     "mode": 493,
     "sha256": "e277105db217afccd3f2ec1d4ec0303255510ba98de594777f541d9f0cf5a915"
+  },
+  {
+    "source": "root/usr/libexec/podkop-tools/probe-worker",
+    "target": "usr/libexec/podkop-tools/probe-worker",
+    "mode": 493,
+    "sha256": "e84a2eb5332214f506f37339d3505742e753a43aa8f331ca8e1ea2d5ef8170fd"
   }
 ]

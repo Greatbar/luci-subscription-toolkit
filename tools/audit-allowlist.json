@@ -787,5 +787,11 @@
     "kind": "credential_assignment",
     "value_sha256": "22bb54162510c6e315d540df972e45a331bd9163bd0316c433ffc071b444873f",
     "reason": "literal synthetic API-key canary used only for rejection regression"
+  },
+  {
+    "file": "root/usr/libexec/podkop-tools/backend.uc",
+    "kind": "url",
+    "value_sha256": "e5bbaa5c200d71497223c00c7cf0672b2dd7da41669a3e552a065a5daba591f3",
+    "reason": "loopback-only diagnostic proxy endpoint; port is generated per accepted profile, no remote or credential data"
   }
 ]

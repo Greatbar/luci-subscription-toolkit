@@ -7,13 +7,15 @@
 'require poll';
 'require ui';
 
-const status = rpc.declare({ object: 'podkop-tools', method: 'status', expect: {} });
+const status = rpc.declare({ object: 'podkop-tools', method: 'status', params: ['token'], expect: {} });
 const actions = {};
 ['seed', 'fetch', 'apply', 'select', 'latency', 'service', 'speed'].forEach(function(name) {
     actions[name] = rpc.declare({ object: 'podkop-tools', method: name,
         params: name === 'apply' ? ['version'] : ['select', 'latency', 'service', 'speed'].includes(name) ? ['id'] : [], expect: {} });
 });
-const labels = { latency: 'Задержка', service: 'Доступность сервиса', speed: 'Скорость' };
+actions.batch = rpc.declare({ object: 'podkop-tools', method: 'batch', params: ['ids', 'kinds', 'speed_bytes', 'token'], expect: {} });
+actions.cancel = rpc.declare({ object: 'podkop-tools', method: 'cancel', params: ['token'], expect: {} });
+const labels = { latency: 'Задержка', service: 'Telegram Web', speed: 'Скорость' };
 function timestamp(value, compact) {
     return value ? new Date(value * 1000).toLocaleString('ru-RU', compact ?
         { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' } : undefined) : '—';
@@ -33,12 +35,12 @@ function flag(name) {
 }
 
 return view.extend({
-    load: function() { return status(); },
+    load: function() { return status(''); },
     redraw: function(s) {
         if (s) this.state = s;
         if (this.container) dom.content(this.container, this.content(this.state));
     },
-    refresh: async function() { this.redraw(await status()); return this.state; },
+    refresh: async function() { this.redraw(await status(this.batchToken || '')); return this.state; },
     details: function(key, title, children) {
         return E('details', { open: this.openDetails[key] ? true : null,
             toggle: event => { this.openDetails[key] = event.target.open; } }, [E('summary', {}, title)].concat(children));
@@ -74,7 +76,7 @@ return view.extend({
             const cancel = () => { ui.hideModal(); this.localBusy = false; this.redraw(); };
             ui.showModal('Запустить проверку скорости?', [
                 E('p', {}, 'До ' + number(Math.ceil(ids.length * cap / 1048576 * 10) / 10) + ' МиБ только для speed-тестов (' +
-                    ids.length + ' × ' + number(Math.ceil(cap / 1048576 * 10) / 10) + ' МиБ). Проверки выполняются по одной.'),
+                    ids.length + ' × ' + number(Math.ceil(cap / 1048576 * 10) / 10) + ' МиБ). Скорость измеряется по одному серверу; лёгкие проверки выполняются параллельно.'),
                 E('div', { 'class': 'stk-buttons right' }, [button('Отмена', cancel), button('Запустить', () => {
                     cancel(); return this.runTests(ids, kinds, cap);
                 })])
@@ -86,84 +88,74 @@ return view.extend({
     stopTests: function() { this.stopping = true; this.redraw(); },
     runTests: async function(ids, kinds, cap) {
         if (this.running || this.localBusy || !this.canWrite) return;
-        this.running = true; this.stopping = false; this.progress = { done: 0, total: ids.length, message: '' };
+        this.running = true; this.stopping = false;
+        this.progress = { done: 0, total: ids.length, message: kinds.map(k => k === 'service' ? this.state.service_name || labels[k] : labels[k]).join(' · ') };
         this.redraw();
+        let message = 'Проверка завершена', cancelSent = false;
         try {
-            for (const id of ids) {
-                if (this.stopping) break;
-                for (const kind of kinds) {
-                    if (this.stopping) break;
-                    let s = await this.refresh();
-                    // Pause for the existing worker and its rate limit; never compete with cron.
-                    while (!this.stopping) {
-                        if (this.container && this.container.isConnected === false) { this.stopping = true; break; }
-                        if (s.compatible === false) { this.progress.message = 'Несовместимое состояние'; this.stopping = true; break; }
-                        if (kind === 'speed' && s.speed_bytes !== cap) {
-                            this.progress.message = 'Лимит трафика изменился; подтвердите запуск заново'; this.stopping = true; break;
-                        }
-                        const nextSpeed = (s.nodes || []).find(n => n.id === id)?.test?.speed_next_at ?? s.speed_next_at;
-                        const cooldown = kind === 'speed' && nextSpeed * 1000 > Date.now();
-                        if (!s.busy && !cooldown) break;
-                        this.progress.message = s.busy ? 'Ожидание текущего задания' : 'Ожидание интервала скорости';
-                        this.redraw();
-                        await new Promise(resolve => setTimeout(resolve, 1000)); s = await this.refresh();
-                    }
-                    if (this.stopping) break;
-                    this.failures[id] = this.failures[id] || {};
-                    if (!(s.nodes || []).some(n => n.id === id)) { this.failures[id][kind] = 'Сервер больше не в списке'; break; }
-                    const sequence = s.measurement ? s.measurement.sequence : 0;
-                    this.progress.message = labels[kind]; this.redraw();
-                    const result = await actions[kind](id);
-                    if (result.ok === false) { this.failures[id][kind] = result.error || 'Операция отклонена'; continue; }
-                    const deadline = Date.now() + 45000;
-                    let receipt;
-                    do {
-                        await new Promise(resolve => setTimeout(resolve, 500)); s = await this.refresh();
-                        receipt = s.measurement;
-                        if (receipt && receipt.sequence > sequence) break;
-                    } while (Date.now() < deadline);
-                    if (!receipt || receipt.sequence <= sequence || receipt.id !== id || receipt.kind !== kind) {
-                        this.progress.message = 'Не удалось подтвердить завершение; очередь остановлена'; this.stopping = true; break;
-                    }
-                    if (!receipt.ok) this.failures[id][kind] = receipt.error || 'Проверка не выполнена';
-                    else delete this.failures[id][kind];
-                    this.redraw();
-                }
-                if (!this.stopping) { this.progress.done++; this.redraw(); }
+            const s = await this.refresh();
+            if (s.compatible === false) throw new Error('Несовместимое состояние');
+            if (s.busy) throw new Error('Роутер выполняет другое задание');
+            if (kinds.includes('speed') && s.speed_bytes !== cap) throw new Error('Лимит трафика изменился; подтвердите запуск заново');
+            if (this.stopping || this.container && this.container.isConnected === false) {
+                message = 'Проверка остановлена'; return;
             }
-        } catch (_) { this.progress.message = 'Связь потеряна; очередь остановлена'; this.stopping = true; }
-        finally {
-            this.running = false;
-            const reason = this.progress.message;
-            this.progress.message = this.stopping ? 'Проверка остановлена' +
-                (reason && !Object.values(labels).includes(reason) && reason !== 'Ожидание интервала скорости' ? ' · ' + reason : '') : 'Проверка завершена';
-            this.redraw();
-        }
+            this.batchToken = (Date.now().toString(16) + Math.random().toString(16).slice(2)).padStart(64, '0');
+            const result = await actions.batch(ids, kinds, cap || 0, this.batchToken);
+            if (result.ok === false) throw new Error(result.error || 'Операция отклонена');
+            const deadline = Date.now() + 250000;
+            while (Date.now() < deadline) {
+                const current = await this.refresh(), receipt = current.batch;
+                if (this.container && this.container.isConnected === false) this.stopping = true;
+                if (receipt && receipt.token === this.batchToken) {
+                    this.progress.done = receipt.done || 0;
+                    if (this.stopping && receipt.state === 'running' && !cancelSent) {
+                        const cancelled = await actions.cancel(this.batchToken);
+                        cancelSent = cancelled.ok !== false;
+                    }
+                    if (['finished', 'cancelled', 'failed'].includes(receipt.state)) {
+                        for (const id of ids) {
+                            this.failures[id] = this.failures[id] || {};
+                            for (const kind of kinds) {
+                                if (receipt.errors && receipt.errors[id] && receipt.errors[id][kind]) this.failures[id][kind] = receipt.errors[id][kind];
+                                else if (receipt.state === 'finished') delete this.failures[id][kind];
+                            }
+                        }
+                        message = receipt.state === 'cancelled' ? 'Проверка остановлена' : receipt.state === 'failed' ? 'Проверка не завершена · ' + (receipt.error || 'Ошибка задания') : 'Проверка завершена';
+                        return;
+                    }
+                }
+                this.redraw();
+                await new Promise(resolve => setTimeout(resolve, 1000));
+            }
+            message = 'Не удалось подтвердить завершение; обновите список';
+        } catch (error) { message = error.message || 'Связь потеряна; обновите список'; }
+        finally { this.running = false; this.progress.message = message; this.redraw(); }
     },
     content: function(s) {
         const disabled = !!s.busy || s.compatible === false || !this.canWrite || this.running || this.localBusy;
-        const nodes = s.nodes || [], active = nodes.find(n => n.selected);
+        const nodes = s.nodes || [], active = nodes.find(n => n.selected), serviceName = s.service_name || 'Telegram Web';
         const rows = nodes.map(n => {
             const t = n.test || {}, service = t.service;
             const times = [!t.latency_stale && t.latency_at, service && !service.stale && service.at, !t.speed_stale && t.at].filter(Boolean);
             const details = this.details(n.id, 'Подробности', [
                 E('p', {}, 'Stable ID: ' + n.id),
                 E('p', {}, 'Задержка: ' + timestamp(t.latency_at) + ' · ' + (t.latency_error || '—') + (t.latency_stale ? ' · Устарела' : '')),
-                E('p', {}, 'Сервис: ' + timestamp(service && service.at) + ' · ' + (service && service.error || '—') +
+                E('p', {}, serviceName + ': ' + timestamp(service && service.at) + ' · ' + (service && service.error || '—') +
                     ' · HTTP ' + (service && service.http_status || '—') + (service && service.stale ? ' · Устарел' : '') +
                     ' · ' + (service && service.bytes != null ? number(service.bytes / 1024) + ' КиБ' : '—') + ' · TLS: ' + (service && service.tls_verified ? 'проверен' : '—')),
                 E('p', {}, 'Скорость: ' + timestamp(t.at) + ' · ' + (t.error || '—') + (t.speed_stale ? ' · Устарела' : '') +
-                    ' · ' + (t.bytes != null ? number(t.bytes / 1048576) + ' МиБ' : '—') + ' / ' + (t.seconds != null ? number(t.seconds) + ' с' : '—')),
+                    ' · ' + (t.bytes != null ? number(t.bytes / 1048576) + ' МиБ' : '—') + ' / ' + (t.seconds != null ? number(t.seconds) + ' с' : '—') + (t.short_sample ? ' · короткая выборка' : '')),
                 E('p', {}, 'Последний запуск: ' + (Object.keys(this.failures[n.id] || {}).map(kind => labels[kind] + ': ' + this.failures[n.id][kind]).join(' · ') || '—'))
             ]);
             const more = this.details('more-' + n.id, 'Ещё', [E('div', { 'class': 'stk-buttons' },
-                Object.keys(labels).map(kind => button(labels[kind], () => this.startTests([n.id], [kind]), disabled)))]);
+                Object.keys(labels).map(kind => button(kind === 'service' ? serviceName : labels[kind], () => this.startTests([n.id], [kind]), disabled)))]);
             return E('tr', { 'class': 'tr' + (n.selected ? ' active' : '') }, [
                 E('td', { 'class': 'td' }, [E(n.selected ? 'strong' : 'span', {}, flag(n.name) + n.name), details]),
                 E('td', { 'class': 'td' }, n.selected ? 'Активный' : '—'),
                 E('td', { 'class': 'td' }, t.latency_stale && (t.latency_at || t.latency != null) ? 'Устарела' : t.latency != null ? t.latency + ' мс' : '—'),
                 E('td', { 'class': 'td' }, service && service.stale ? 'Устарел' : service ? (service.ok ? 'Доступен' : 'Недоступен') : 'Не проверен'),
-                E('td', { 'class': 'td' }, t.speed_stale && (t.at || t.mbps != null) ? 'Устарела' : t.mbps != null ? number(t.mbps) + ' Мбит/с' : '—'),
+                E('td', { 'class': 'td' }, t.speed_stale && (t.at || t.mbps != null) ? 'Устарела' : t.mbps != null ? number(t.mbps) + ' Мбит/с' + (t.short_sample ? ' · короткая выборка' : '') : '—'),
                 E('td', { 'class': 'td', title: 'Последняя актуальная проверка; время каждого теста — в подробностях' }, timestamp(times.length ? Math.max.apply(null, times) : null, true)),
                 E('td', { 'class': 'td' }, E('div', { 'class': 'stk-buttons' }, [
                     button('Выбрать', () => this.operation('select', n.id), disabled || n.selected),
@@ -200,7 +192,7 @@ return view.extend({
             E('section', { 'class': 'cbi-section stk-panel stk-section', 'aria-label': 'Проверить серверы' }, [
                 E('div', { 'class': 'stk-controls' }, [E('strong', {}, 'Проверить серверы')].concat(Object.keys(labels).map(kind =>
                     E('label', {}, [E('input', { type: 'checkbox', checked: this.tests[kind] ? true : null, disabled: this.running || this.localBusy ? true : null,
-                        change: event => { this.tests[kind] = event.target.checked; this.redraw(); } }), labels[kind]])
+                        change: event => { this.tests[kind] = event.target.checked; this.redraw(); } }), kind === 'service' ? serviceName : labels[kind]])
                 )).concat([
                     E('label', {}, ['Область: ', E('select', { 'class': 'cbi-input-select', disabled: this.running || this.localBusy ? true : null,
                         change: event => { this.scope = event.target.value; } }, [
@@ -214,7 +206,7 @@ return view.extend({
                     (this.stopping && this.running ? 'Остановка: текущая проба завершится и очистит процессы' : this.progress.message))] : [])
             ]),
             E('div', { 'class': 'stk-table stk-section', tabindex: '0', 'aria-label': 'Таблица серверов' }, E('table', { 'class': 'table' }, [
-                E('tr', { 'class': 'tr table-titles' }, ['Сервер', 'Статус', 'Задержка', 'Сервис', 'Скорость', 'Проверено', 'Действия'].map(title => E('th', { 'class': 'th', scope: 'col' }, title)))
+                E('tr', { 'class': 'tr table-titles' }, ['Сервер', 'Статус', 'Задержка', serviceName, 'Скорость', 'Проверено', 'Действия'].map(title => E('th', { 'class': 'th', scope: 'col' }, title)))
             ].concat(rows.length ? rows : [E('tr', { 'class': 'tr' }, E('td', { 'class': 'td', colspan: '7' }, 'Серверов пока нет. Прочитайте текущий MAIN в подробностях.'))])))
         ]);
     },

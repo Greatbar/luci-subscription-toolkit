@@ -11,7 +11,20 @@ for private_dir in "$base" /etc/podkop-tools; do
     chmod 700 "$private_dir"
 done
 case "${1:-}" in
-    status) exec ucode /usr/libexec/podkop-tools/backend.uc status ;;
+    status) exec ucode /usr/libexec/podkop-tools/backend.uc status "${2:-}" ;;
+    cancel)
+        [ "$#" -eq 2 ] && [ "${#2}" -eq 64 ]
+        case "$2" in *[!a-f0-9]*) exit 2;; esac
+        if [ -f "$base/job/batch-token" ] && [ "$(cat "$base/job/batch-token")" = "$2" ]; then
+            : > "$base/cancel-$2"
+            printf '{"ok":true}\n'
+        else printf '{"ok":false,"error":"batch_not_running"}\n'; fi
+        exit ;;
+    batch)
+        [ "$#" -eq 2 ] && [ "${#2}" -le 16384 ]
+        token=$(printf '%s' "$2" | jq -er '.token | select(type == "string" and length == 64)')
+        case "$token" in *[!a-f0-9]*) exit 2;; esac
+        ;;
     source|seed|migrate|fetch|check|health|due|restore|rollback) [ "$#" -eq 1 ] ;;
     apply|select|speed|latency|service)
         [ "$#" -eq 2 ]
@@ -20,26 +33,38 @@ case "${1:-}" in
         ;;
     *) exit 2 ;;
 esac
+reject() {
+    if [ "$1" = batch ]; then
+        printf '{"token":"%s","state":"failed","done":0,"error":"%s"}\n' "$token" "$2" > "$base/batch-$token.json"
+    fi
+    printf '{"ok":false,"error":"%s"}\n' "$2"
+    exit 1
+}
 exec 9>"$base/job.lock"
 if ! flock -n 9; then
     logger -t podkop-tools "task=$1 result=busy"
-    printf '{"ok":false,"error":"busy"}\n'; exit 1
+    reject "$1" busy
 fi
 # Measurement commands must not recover an interrupted MAIN transaction.
 # Leave recovery to an explicit maintenance operation; never reload for a metric.
-case "$1" in migrate|service|speed|latency)
+case "$1" in migrate|service|speed|latency|batch)
     if [ -f /etc/podkop-tools/transaction.json ]; then
-        printf '{"ok":false,"error":"recovery_required"}\n'; exit 1
+        reject "$1" recovery_required
     fi ;;
 esac
 rm -rf "$base/job" "$base/lock"
 mkdir -p "$base/lock" "$base/job/uci" "$base/job/delta" "$base/job/rulesets"
+task_kind=$1
 cleanup() {
     if [ -f "$base/job/probe.pid" ]; then
         pid=$(cat "$base/job/probe.pid")
         case "$pid" in ''|*[!0-9]*) ;; *)
-            if [ -r "/proc/$pid/cmdline" ] && tr '\0' ' ' < "/proc/$pid/cmdline" | grep -q '^timeout -s TERM 40 /usr/bin/sing-box run -c /tmp/podkop-tools/job/probe.json'; then
+            if [ -r "/proc/$pid/cmdline" ] && tr '\0' ' ' < "/proc/$pid/cmdline" | grep -q '^timeout -s TERM 240 /usr/bin/sing-box run -c /tmp/podkop-tools/job/probe.json'; then
                 kill -TERM "$pid" 2>/dev/null || :
+                # Do not remove configuration while the deadline child exits.
+                while [ -r "/proc/$pid/cmdline" ] && tr '\0' ' ' < "/proc/$pid/cmdline" | grep -q '^timeout -s TERM 240 /usr/bin/sing-box run -c /tmp/podkop-tools/job/probe.json'; do
+                    sleep 1
+                done
             fi ;;
         esac
     fi
@@ -47,6 +72,7 @@ cleanup() {
         timeout -s TERM 150 ucode /usr/libexec/podkop-tools/backend.uc rollback >/dev/null 2>&1 || :
     fi
     rm -rf "$base/job" "$base/lock"
+    if [ "$task_kind" = batch ]; then rm -f "$base/cancel-$token"; fi
 }
 trap cleanup EXIT
 trap 'exit 1' INT TERM
