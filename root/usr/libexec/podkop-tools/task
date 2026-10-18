@@ -11,6 +11,12 @@ for private_dir in "$base" /etc/podkop-tools; do
     chmod 700 "$private_dir"
 done
 case "${1:-}" in
+    statistics)
+        [ "$#" -eq 3 ] && [ "${#2}" -eq 64 ]
+        case "$2" in *[!a-f0-9]*) exit 2;; esac
+        case "$3" in 24h|7d|30d) ;; *) exit 2;; esac
+        exec ucode /usr/libexec/podkop-tools/backend.uc statistics "$2" "$3" ;;
+    history-save|history-restore) [ "$#" -eq 1 ]; exec ucode /usr/libexec/podkop-tools/backend.uc "$1" ;;
     status) exec ucode /usr/libexec/podkop-tools/backend.uc status "${2:-}" ;;
     cancel)
         [ "$#" -eq 2 ] && [ "${#2}" -eq 64 ]
@@ -40,11 +46,98 @@ reject() {
     printf '{"ok":false,"error":"%s"}\n' "$2"
     exit 1
 }
-exec 9>"$base/job.lock"
-if ! flock -n 9; then
-    logger -t podkop-tools "task=$1 result=busy"
-    reject "$1" busy
+# Scheduled work reserves priority before waiting for the single routing lock.
+# check/fetch share a queue: overlapping invocations are coalesced, never replayed.
+task_kind=$1
+priority_family=
+priority_owner=0
+job_acquired=0
+scheduler_reason=
+queued_at=$(date +%s)
+monotime() { read task_uptime task_idle < /proc/uptime; printf '%s\n' "${task_uptime%%.*}"; }
+queued_mono=$(monotime)
+started_at=0
+started_mono=0
+case "$task_kind" in check|fetch) priority_family=fetch;; due) priority_family=due;; esac
+scheduler_receipt() {
+    local finished wait_seconds duration result_file status_file receipt
+    finished=$(monotime)
+    if [ "$started_mono" -gt 0 ]; then
+        wait_seconds=$((started_mono - queued_mono)); duration=$((finished - started_mono))
+    else wait_seconds=$((finished - queued_mono)); duration=0; fi
+    result_file="$base/scheduler/.response-$priority_family-$$"
+    [ -f "$result_file" ] || result_file=/dev/null
+    status_file="$base/status.json"
+    [ -f "$status_file" ] || status_file=/dev/null
+    receipt="$base/scheduler/$priority_family-$(date +%s)-$$.json"
+    if jq -n --arg command "$task_kind" --arg family "$priority_family" --arg reason "$scheduler_reason" \
+        --argjson queued "$queued_at" --argjson started "$started_at" --argjson finished "$(date +%s)" \
+        --argjson wait "$wait_seconds" --argjson duration "$duration" --argjson code "$task_exit" \
+        --rawfile output "$result_file" --rawfile status "$status_file" '
+        ($output | try fromjson catch {}) as $r | ($status | try fromjson catch {}) as $s |
+        (if $reason != "" then $reason elif $code != 0 then ($r.error // "backend_exit")
+         elif $r.disabled then "disabled" elif $family == "due" then
+            (if $s.state == "no_pending" then "no_pending" else ($s.apply_blocked_reason // "") end)
+         else "" end) as $why |
+        {command:$command,family:$family,queued_at:$queued,started_at:(if $started==0 then null else $started end),
+         finished_at:$finished,wait_seconds:$wait,duration_seconds:$duration,exit_code:$code,
+         result:(if (["duplicate","lock_timeout"]|index($why)) != null or ($code==0 and $why!="") then "skipped" elif $code!=0 then "failed" else "success" end),
+         reason:(if $why=="" then null else $why end),state:$s.state,last_success:$s.last_success,
+         last_apply:$s.last_apply,last_apply_attempt:$s.last_apply_attempt,apply_blocked_reason:$s.apply_blocked_reason}' \
+        > "$receipt.new"; then
+        mv "$receipt.new" "$receipt"
+        # At most 48 receipts per family (48 hours of due), all in tmpfs.
+        ls -1t "$base/scheduler/$priority_family"-*.json | sed -n '49,$p' | while IFS= read -r old_receipt; do rm -f "$old_receipt"; done
+    else
+        rm -f "$receipt.new"
+        logger -t podkop-tools "task=$task_kind result=receipt_failed"
+    fi
+}
+finish_task() {
+    task_exit=$?
+    trap - EXIT
+    if [ "$job_acquired" = 1 ]; then cleanup; fi
+    if [ -n "$priority_family" ]; then
+        scheduler_receipt
+        rm -f "$base/scheduler/.response-$priority_family-$$"
+        if [ "$priority_owner" = 1 ]; then rm -f "$base/waiting-$priority_family"; fi
+    fi
+    exit "$task_exit"
+}
+trap finish_task EXIT
+trap 'scheduler_reason=interrupted; exit 143' INT TERM
+if [ -n "$priority_family" ]; then
+    mkdir -p "$base/scheduler"
+    exec 8>"$base/queue-$priority_family.lock"
+    if ! flock -n 8; then scheduler_reason=duplicate; reject "$task_kind" duplicate; fi
+    priority_owner=1
+    printf '%s %s\n' "$$" "$(awk '{print $22}' /proc/$$/stat)" > "$base/waiting-$priority_family"
+elif [ "$task_kind" = health ]; then
+    for priority in fetch due; do
+        if [ -r "$base/waiting-$priority" ]; then
+            read waiting_pid waiting_start < "$base/waiting-$priority" || continue
+            case "$waiting_pid" in ''|*[!0-9]*) continue;; esac
+            if [ -r "/proc/$waiting_pid/stat" ] && [ "$(awk '{print $22}' /proc/$waiting_pid/stat)" = "$waiting_start" ]; then
+                reject "$task_kind" priority_waiting
+            fi
+        fi
+    done
 fi
+exec 9>"$base/job.lock"
+if [ -n "$priority_family" ]; then
+    deadline=$((queued_mono + 90))
+    until flock -n 9; do
+        if [ "$(monotime)" -ge "$deadline" ]; then scheduler_reason=lock_timeout; reject "$task_kind" lock_timeout; fi
+        sleep 1
+    done
+else
+    if ! flock -n 9; then
+        logger -t podkop-tools "task=$task_kind result=busy"
+        reject "$task_kind" busy
+    fi
+fi
+started_at=$(date +%s)
+started_mono=$(monotime)
 # Measurement commands must not recover an interrupted MAIN transaction.
 # Leave recovery to an explicit maintenance operation; never reload for a metric.
 case "$1" in migrate|service|speed|latency|batch)
@@ -69,11 +162,16 @@ cleanup() {
         esac
     fi
     if [ -f /etc/podkop-tools/transaction.json ]; then
-        timeout -s TERM 150 ucode /usr/libexec/podkop-tools/backend.uc rollback >/dev/null 2>&1 || :
+        timeout -s TERM 150 ucode /usr/libexec/podkop-tools/backend.uc rollback 8>&- >/dev/null 2>&1 || :
     fi
     rm -rf "$base/job" "$base/lock"
     if [ "$task_kind" = batch ]; then rm -f "$base/cancel-$token"; fi
 }
-trap cleanup EXIT
-trap 'exit 1' INT TERM
+job_acquired=1
+if [ -n "$priority_family" ]; then
+    result_file="$base/scheduler/.response-$priority_family-$$"
+    if timeout -s TERM 300 ucode /usr/libexec/podkop-tools/backend.uc "$@" 8>&- > "$result_file"; then result_code=0; else result_code=$?; fi
+    cat "$result_file"
+    exit "$result_code"
+fi
 timeout -s TERM 300 ucode /usr/libexec/podkop-tools/backend.uc "$@"

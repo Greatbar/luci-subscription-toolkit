@@ -793,5 +793,35 @@
     "kind": "url",
     "value_sha256": "e5bbaa5c200d71497223c00c7cf0672b2dd7da41669a3e552a065a5daba591f3",
     "reason": "loopback-only diagnostic proxy endpoint; port is generated per accepted profile, no remote or credential data"
+  },
+  {
+    "file": "htdocs/luci-static/resources/view/podkop-tools/dashboard.js",
+    "kind": "url",
+    "value_sha256": "dd47c910e24e3a8b465584a63ff52f40333082add135aba120c93203b2536901",
+    "reason": "Public W3C SVG namespace identifier; no network request."
+  },
+  {
+    "file": "tests/podkop-tools/policy-ui.cjs",
+    "kind": "url",
+    "value_sha256": "dd47c910e24e3a8b465584a63ff52f40333082add135aba120c93203b2536901",
+    "reason": "Public W3C SVG namespace identifier; no network request."
+  },
+  {
+    "file": "tests/podkop-tools/antigravity.py",
+    "kind": "ipv4",
+    "value_sha256": "631f08140b24b7274d12df3c37a1a80ce5876dafd7007d772e0114fddf88b682",
+    "reason": "synthetic optional-route test value: reserved example IP, loopback or fixture hostname"
+  },
+  {
+    "file": "tests/podkop-tools/antigravity.py",
+    "kind": "ipv4",
+    "value_sha256": "12ca17b49af2289436f303e0166030a21e525d266e209267433801a8fd4071a0",
+    "reason": "synthetic optional-route test value: reserved example IP, loopback or fixture hostname"
+  },
+  {
+    "file": "tests/podkop-tools/antigravity.py",
+    "kind": "hostname_literal",
+    "value_sha256": "afa39d738f954a29b7c7478c98b3cb61a664d4840a1a78f79678f7285c481878",
+    "reason": "synthetic optional-route test value: reserved example IP, loopback or fixture hostname"
   }
 ]

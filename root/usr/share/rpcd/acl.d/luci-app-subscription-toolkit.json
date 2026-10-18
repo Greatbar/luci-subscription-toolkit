@@ -7,7 +7,8 @@
       ],
       "ubus": {
         "podkop-tools": [
-          "status"
+          "status",
+          "statistics"
         ]
       }
     },

@@ -11,10 +11,12 @@ def run(*args,**kw): return subprocess.run(args,check=True,**kw)
 def docker(*args,**kw):return run('docker',*args,**kw)
 def exec_(*args):return docker('exec',MAIN,*args)
 def main():
-    p=argparse.ArgumentParser();p.add_argument('suite',choices=['unit','integration','recovery','rotation','ownership','readiness','browser','all']);a=p.parse_args()
+    p=argparse.ArgumentParser();p.add_argument('suite',choices=['unit','antigravity','integration','recovery','rotation','ownership','readiness','browser','all']);a=p.parse_args()
     run('node',str(ROOT/'tests/podkop-tools/luci.cjs'))
+    run('node',str(ROOT/'tests/podkop-tools/policy-ui.cjs'))
     run('python3',str(ROOT/'tests/test_audit.py'))
     run('python3','-B',str(ROOT/'tests/test_security.py'))
+    run('python3','-B',str(ROOT/'tests/podkop-tools/scheduler.py'))
     run('python3','-B',str(ROOT/'tools/generate-fixtures.py'),'--check')
     # Never adopt or remove an existing container or network.
     for kind,name in [('container',MAIN),('container',EXIT),('container','subscription-toolkit-test-driver'),('network',NETWORK)]:
@@ -30,16 +32,27 @@ def main():
         else:raise RuntimeError('OpenWrt procd/ubus did not start')
         spec=importlib.util.spec_from_file_location('integration',ROOT/'tests/podkop-tools/integration.py');lab=importlib.util.module_from_spec(spec);sys.modules['integration']=lab;spec.loader.exec_module(lab)
         lab.LAB.mkdir(parents=True,exist_ok=True);lab.setup_packages()
-        for name in ('model','service'):
+        for name in ('model','service','policy','statistics'):
             lab.cp(ROOT/f'tests/podkop-tools/{name}.uc','/tmp/'+name+'.uc');exec_('ucode','/tmp/'+name+'.uc')
         for name in ('provider.json','outbounds.json'):
             lab.cp(ROOT/'tests/fixtures'/name,'/tmp/'+name)
         lab.cp(ROOT/'tests/podkop-tools/provider.uc','/tmp/provider.uc')
         exec_('ucode','/tmp/provider.uc','/tmp/provider.json','/tmp/outbounds.json','/tmp/provider-check.json')
         exec_('sing-box','check','-c','/tmp/provider-check.json')
-        suites=['integration','recovery','rotation','ownership','readiness','baseline','browser'] if a.suite=='all' else ([] if a.suite=='unit' else ['baseline',a.suite] if a.suite in ('browser','readiness') else [a.suite])
+        suites=['integration','recovery','rotation','ownership','antigravity','readiness','baseline','browser'] if a.suite=='all' else ([] if a.suite=='unit' else ['baseline',a.suite] if a.suite in ('browser','readiness') else [a.suite])
         for suite in suites:
-            if suite in ('integration','recovery','rotation','ownership','baseline'):
+            if suite == 'antigravity':
+                # Host orchestration: the optional-route fixture never needs a
+                # Docker socket or Docker CLI mounted into a test container.
+                sys.path.insert(0,str(ROOT/'tests/podkop-tools'))
+                original_args,original_setup=sys.argv,lab.setup_packages
+                try:
+                    sys.argv=['integration.py','--antigravity']
+                    lab.setup_packages=lambda:None
+                    lab.main()
+                finally:
+                    sys.argv=original_args;lab.setup_packages=original_setup
+            elif suite in ('integration','recovery','rotation','ownership','baseline'):
                 cert=lab.LAB/'fixture.crt';key=lab.LAB/'fixture.key'
                 run('openssl','req','-x509','-newkey','rsa:2048','-nodes','-keyout',str(key),'-out',str(cert),'-days','1','-subj','/CN=subscription-toolkit-fixture','-addext','subjectAltName=IP:127.0.0.1',stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);key.chmod(0o600)
                 image=json.loads((ROOT/'tools/sources.lock.json').read_text())['python_fixture']['image']
@@ -48,6 +61,10 @@ def main():
                 run(*args)
             elif suite=='readiness':run('python3',str(ROOT/'tests/podkop-tools/readiness.py'))
             else:
+                # Resume-search regression uses real backend I/O and deterministic probe time.
+                spec=importlib.util.spec_from_file_location('v020',ROOT/'tests/podkop-tools/v020.py')
+                policy_test=importlib.util.module_from_spec(spec);spec.loader.exec_module(policy_test)
+                policy_test.l=lab;policy_test.continuing_scan()
                 # The fixture password has no access outside this disposable namespace.
                 exec_('sh','-c',"printf 'PodkopLabOnly123\\nPodkopLabOnly123\\n' | passwd root")
                 exec_('/etc/init.d/uhttpd','restart')

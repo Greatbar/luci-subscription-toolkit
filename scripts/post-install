@@ -4,7 +4,14 @@
 set -eu
 [ -z "${IPKG_INSTROOT:-}" ] || exit 0
 chmod 600 /etc/config/podkop_tools /etc/config/podkop_tools_subscription
+# One-time v0.2 schedule migration; never changes enabled/apply policy or MAIN.
+if [ "$(uci -q get podkop_tools.main.policy_version)" != 2 ]; then
+    uci set podkop_tools.main.health_minutes=1
+    uci set podkop_tools.main.policy_version=2
+    uci commit podkop_tools
+fi
 /etc/init.d/podkop-tools enable
+/etc/init.d/podkop-tools reload
 # Enable only the finite boot hook; enabled=0 prevents fetch and restoration.
 # No startup, network fetch, native reload, package updates or world pins.
 rm -rf /tmp/luci-indexcache /tmp/luci-modulecache

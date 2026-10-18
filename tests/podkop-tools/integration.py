@@ -281,13 +281,21 @@ def main():
     key.chmod(0o600)
     class Handler(http.server.BaseHTTPRequestHandler):
         def log_message(self,*args):pass
-        def do_HEAD(self):self.send_response(204);self.end_headers()
+        def do_HEAD(self):
+            if self.path.startswith('/hang'):time.sleep(20)
+            try:self.send_response(204);self.end_headers()
+            except (BrokenPipeError,ConnectionResetError,ssl.SSLError):pass
         def do_GET(self):
             state['counts'][self.client_address[0]]=state['counts'].get(self.client_address[0],0)+1
             if self.path.startswith('/sub'):
                 callback=state.pop('on_sub',None)
                 if callback:callback()
-                if state['mode']=='unavailable' or (not state['direct'] and self.client_address[0]==client_ip):
+                if state['mode']=='hang':
+                    time.sleep(20)
+                    try:self.send_response(503);self.end_headers()
+                    except (BrokenPipeError,ConnectionResetError,ssl.SSLError):pass
+                    return
+                if state['mode'] in ('unavailable','hang') or (not state['direct'] and self.client_address[0]==client_ip):
                     self.send_response(503);self.end_headers();return
                 body=b'[]' if state['mode']=='empty' else b'{broken' if state['mode']=='broken' else json.dumps(state['profiles'],ensure_ascii=False).encode()
                 self.send_response(200);self.send_header('Content-Length',str(len(body)));self.end_headers();self.wfile.write(body);return
@@ -356,6 +364,11 @@ def main():
         uci('podkop_tools.main.bootstrap_dns',gateway);uci('podkop_tools.main.bootstrap_port',dns_port)
         task('seed');initial_pid=pid();initial_hash=fingerprint()
         record('native_stock_MAIN_seeded',public()['count']==len(pairs))
+        if '--antigravity' in sys.argv:
+            import antigravity
+            antigravity.l = sys.modules[__name__]
+            antigravity.custom(state,start_exit,endpoint)
+            return
         if '--baseline' in sys.argv:
             task('select',next(n['id'] for n in public()['nodes'] if n['name']=='Латвия'))
             return
@@ -364,7 +377,12 @@ def main():
             ownership.l = sys.modules[__name__]
             ownership.custom(state,start_exit,endpoint)
             return
-        if '--recovery' in sys.argv or '--rotation' in sys.argv:
+        if '--recovery' in sys.argv:
+            import v020
+            v020.l = sys.modules[__name__]
+            v020.custom(state,start_exit,endpoint)
+            return
+        if '--rotation' in sys.argv:
             recovery_scenarios(state,start_exit,endpoint)
             return
         def set_source(url):
@@ -390,9 +408,8 @@ def main():
         state['mode']='unavailable';out=task('check',check=False)
         record('periodic_fetch_never_switches_on_failure',not out['ok'] and public()['selected_id']==chosen and pid()==initial_pid)
         task('health');record('first_health_failure_preserves_manual_choice',public()['selected_id']==chosen and pid()==initial_pid)
-        observation=json.loads(dex('cat','/tmp/podkop-tools/health.json').stdout)
-        observation['checked_at']=int(time.time())-901;observation['first_failed_at']=int(time.time())-901
-        write('/tmp/podkop-tools/health.json',json.dumps(observation))
+        import v020
+        v020.l=sys.modules[__name__];v020.prime(chosen)
         task('health');record('unavailable_subscription_recovers_from_saved_snapshot',public()['selected_id']!=chosen and pid()==initial_pid)
         state['mode']='valid';task('check');record('priority_recovery_without_reload',public()['selected_id']!=chosen and pid()==initial_pid)
         state['direct']=True
@@ -534,7 +551,7 @@ def main():
         dex('sh','-c',"echo '1 1 * * * echo preserved # external' | crontab -")
         dex('/etc/init.d/podkop-tools','reload');dex('/etc/init.d/podkop-tools','reload')
         cron=dex('crontab','-l').stdout
-        record('cron_idempotent_preserves_other_jobs',cron.count('# podkop-tools')==3 and '# external' in cron and 'task health' in cron)
+        record('cron_idempotent_preserves_other_jobs',cron.count('# podkop-tools')==4 and '# external' in cron and 'task health' in cron)
         uci('podkop_tools.main.enabled',0);dex('/etc/init.d/podkop-tools','reload')
         record('disabled_cron_and_stale_job_are_inert','# podkop-tools' not in dex('crontab','-l').stdout and task('check').get('disabled'))
         command(['docker','cp',MAIN+':/usr/share/podkop-tools/compat.sha256',str(LAB/'compat.original')])

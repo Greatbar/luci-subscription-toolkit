@@ -89,6 +89,12 @@ const fs = require('node:fs');
          receipt.done=params.ids.length;receipt.state='finished';fixture.busy=false;
        },delay);
        replies.push({jsonrpc:'2.0',id:item.id,result:[0,{ok:true,queued:true}]});
+     } else if(kind==='statistics') {
+       const hour=Math.floor(Date.now()/3600000)*3600;
+       replies.push({jsonrpc:'2.0',id:item.id,result:[0,{id:params.id,period:params.period,rows:[
+         {hour:hour-7200,attempts:4,successes:3,delay_sum:300,delay_count:3,delay_min:80,delay_max:120,failures:1,switches:0},
+         {hour,attempts:2,successes:2,delay_sum:160,delay_count:2,delay_min:70,delay_max:90,failures:0,switches:1}
+       ],truncated:false}]});
      } else if(kind==='cancel') {
        assert.equal(params.token,fixture.batch.token);fixture.batch.state='cancelled';fixture.busy=false;
        replies.push({jsonrpc:'2.0',id:item.id,result:[0,{ok:true}]});
@@ -96,6 +102,15 @@ const fs = require('node:fs');
    }
    await route.fulfill({contentType:'application/json',body:JSON.stringify(Array.isArray(input)?replies:replies[0])});
  });
+ await page.getByText('Статистика HTTPS',{exact:true}).click();
+ await page.locator('.stk-dashboard svg[role=img]').first().waitFor();
+ assert.equal(await page.locator('.stk-dashboard svg[role=img]').count(),3,'native SVG charts');
+ await page.setViewportSize({width:390,height:844});
+ assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth),true,'statistics charts fit mobile');
+ await page.screenshot({path:dir+'/statistics-mobile.png',fullPage:true});
+ await page.setViewportSize({width:1440,height:1000});
+ await page.getByText('Статистика HTTPS',{exact:true}).click();
+ console.log('PASS lazy statistics SVG graphs and mobile gaps');
  await page.getByRole('button',{name:'Обновить список',exact:true}).click();
  await page.getByRole('button',{name:'Запустить проверку',exact:true}).click();
  await page.getByRole('status').filter({hasText:'Проверено 11 из 11'}).waitFor({timeout:10000});

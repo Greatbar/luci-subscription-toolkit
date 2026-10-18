@@ -32,7 +32,7 @@ return view.extend({
         o = s.option(form.ListValue, 'fetch_hours', 'Интервал получения');
         [1, 2, 3, 4, 6, 8, 12, 24].forEach(h => o.value(String(h), h + ' ч'));
         o = s.option(form.ListValue, 'health_minutes', 'Интервал контрольного health-check');
-        [5, 10, 15, 20, 30, 60].forEach(m => o.value(String(m), m + ' мин')); o.default = '15';
+        [1].forEach(m => o.value(String(m), m + ' мин')); o.default = '1';
         o = s.option(form.Value, 'pending_max_age_hours', 'Свежесть последней проверки кандидата, ч', 'После истечения кандидат удаляется. Перед любым обычным apply источник проверяется повторно.'); o.datatype = 'range(1,72)'; o.default = '12';
         o = s.option(form.ListValue, 'apply_policy', 'Применение обычных изменений');
         o.value('manual', 'Вручную'); o.value('window', 'В отложенном окне');
@@ -40,9 +40,31 @@ return view.extend({
         o = s.option(form.Value, 'defer_hours', 'Минимальная отсрочка, ч'); o.datatype = 'range(1,168)'; o.depends('apply_policy', 'window');
         o = s.option(form.Value, 'max_defer_hours', 'Максимальное ожидание серии изменений, ч', 'В ближайшем ночном окне после этого срока проверяется и применяется свежая версия, даже при частой ротации. Ошибка загрузки или проверки блокирует apply. Значение не меньше минимальной отсрочки.'); o.datatype = 'range(1,168)'; o.default = '24'; o.depends('apply_policy', 'window');
         o = s.option(form.Flag, 'priority_recovery', 'Восстановление при отказе активного сервера',
-            'Два отказа в разных интервалах health-check. Сначала обновляется подписка и проверяется новый адрес выбранного ID, затем сохранённые резервы. Между попытками восстановления минимум 30 минут. HTTP 204 не доказывает работу приложений.'); o.rmempty = false;
-        o = s.option(form.ListValue, 'fallback_id', 'Предпочтительный резерв'); o.value('', 'Первый проверенный совместимый сервер');
+            'Отказ подтверждается числом последовательных ошибок и временем. Затем проверяется свежий профиль предпочтительного сервера и резервы. HTTPS-проба не подтверждает работу приложений.'); o.rmempty = false;
+        o = s.option(form.DynamicList, 'priority_ids', 'Порядок резервных серверов',
+            'Выберите резервные серверы по порядку предпочтения. Серверы вне списка проверяются последними. Основной выбирается на странице серверов.');
         (state.nodes || []).forEach(n => o.value(n.id, n.name));
+        o.validate = (section, value) => !value || /^[a-f0-9]{64}$/.test(value) ? true : 'Выберите сервер из списка';
+        const numeric = (key, label, value, range, description) => {
+            const field = s.option(form.Value, key, label, description);
+            field.datatype = range; field.default = value; field.rmempty = false;
+            return field;
+        };
+        numeric('probe_timeout_seconds', 'Таймаут HTTPS-пробы, с', '5', 'range(1,5)');
+        numeric('failure_seconds', 'Минимальная длительность отказа, с', '120', 'range(1,86400)');
+        numeric('failure_count', 'Последовательных ошибок для отказа', '3', 'range(1,100)');
+        o = s.option(form.Flag, 'latency_enabled', 'Переключение при устойчивой высокой задержке',
+            'По умолчанию выключено. При включении резерв должен пройти HTTPS-пробу и улучшить задержку на оба заданных порога.');
+        o.default = '0'; o.rmempty = false;
+        numeric('latency_threshold_ms', 'Порог задержки, мс', '1000', 'range(1,60000)').depends('latency_enabled', '1');
+        numeric('latency_duration_seconds', 'Выдержка высокой задержки, с', '300', 'range(1,86400)').depends('latency_enabled', '1');
+        numeric('improvement_percent', 'Минимальное улучшение, %', '20', 'range(0,100)').depends('latency_enabled', '1');
+        numeric('improvement_ms', 'Минимальное улучшение, мс', '50', 'range(0,60000)').depends('latency_enabled', '1');
+        numeric('cooldown_seconds', 'Пауза между автоматическими переключениями, с', '600', 'range(0,86400)');
+        o = s.option(form.Flag, 'failback_enabled', 'Возвращаться к предпочтительному серверу',
+            'Возврат после устойчивых успешных HTTPS-проб предпочтительного сервера.'); o.default = '1'; o.rmempty = false;
+        numeric('failback_seconds', 'Выдержка перед возвратом, с', '600', 'range(1,86400)').depends('failback_enabled', '1');
+        numeric('failback_successes', 'Успешных проб перед возвратом', '3', 'range(1,100)').depends('failback_enabled', '1');
         o = s.option(form.Value, 'bootstrap_dns', 'Bootstrap DNS'); o.datatype = 'ip4addr';
         o = s.option(form.Value, 'bootstrap_port', 'Порт Bootstrap DNS'); o.datatype = 'port';
         s.option(form.Value, 'health_url', 'Endpoint проверки доступности', 'HTTPS; успешный ответ должен быть HTTP 204.');

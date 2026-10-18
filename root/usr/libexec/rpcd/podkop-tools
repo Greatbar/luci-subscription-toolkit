@@ -3,7 +3,7 @@
 set -eu
 case "$1" in
 list)
-    printf '%s\n' '{"source":{"url":""},"status":{"token":""},"seed":{},"fetch":{},"apply":{"version":""},"select":{"id":""},"speed":{"id":""},"latency":{"id":""},"service":{"id":""},"batch":{"ids":[],"kinds":[],"speed_bytes":0,"token":""},"cancel":{"token":""},"schedule":{}}'
+    printf '%s\n' '{"source":{"url":""},"status":{"token":""},"statistics":{"id":"","period":""},"seed":{},"fetch":{},"apply":{"version":""},"select":{"id":""},"speed":{"id":""},"latency":{"id":""},"service":{"id":""},"batch":{"ids":[],"kinds":[],"speed_bytes":0,"token":""},"cancel":{"token":""},"schedule":{}}'
     ;;
 call)
     case "$2" in
@@ -11,6 +11,11 @@ call)
             token=$(jq -r '.token // ""' 2>/dev/null)
             case "$token" in '' ) ;; *[!a-f0-9]* ) exit 2 ;; *) [ "${#token}" -eq 64 ] ;; esac
             exec /usr/libexec/podkop-tools/task status "$token" ;;
+        statistics)
+            request=$(jq -ce '{id,period} | select((.id|type)=="string" and (.id|length)==64 and (.period=="24h" or .period=="7d" or .period=="30d"))')
+            id=$(printf '%s' "$request" | jq -r '.id')
+            period=$(printf '%s' "$request" | jq -r '.period')
+            exec /usr/libexec/podkop-tools/task statistics "$id" "$period" ;;
         cancel)
             token=$(jq -er '.token | select(type == "string" and length == 64)' 2>/dev/null)
             case "$token" in *[!a-f0-9]*) exit 2 ;; esac

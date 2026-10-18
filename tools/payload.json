@@ -3,19 +3,19 @@
     "source": "htdocs/luci-static/resources/view/podkop-tools/dashboard.js",
     "target": "www/luci-static/resources/view/podkop-tools/dashboard.js",
     "mode": 420,
-    "sha256": "e96cd07e60d5e7da7897a5c0bca76d6edd9a42e5e745a195af2c5e9763efc862"
+    "sha256": "258016d5242c34ed7541f05191d3a70766b2d7da2e98601d2cce54aa72104363"
   },
   {
     "source": "htdocs/luci-static/resources/view/podkop-tools/settings.js",
     "target": "www/luci-static/resources/view/podkop-tools/settings.js",
     "mode": 420,
-    "sha256": "b878e3ce666b299ba44e02b52eb625992302162dbb0bb6c1af9ab56b8eef5c34"
+    "sha256": "b2236ba4d19e4150956c8a7be45054e45fcb44e3c4c01dc2dbd3ef85910677de"
   },
   {
     "source": "root/etc/config/podkop_tools",
     "target": "etc/config/podkop_tools",
     "mode": 384,
-    "sha256": "7904eb73c34870494a3be6e78c3a658df287532bb039eea7dcd33dd061dbe8a5"
+    "sha256": "319997e4ef6cae8232d8f98d81b9a7d7e77df4deffaa5cbc9e710fbd7b2ab64b"
   },
   {
     "source": "root/etc/config/podkop_tools_subscription",
@@ -27,7 +27,7 @@
     "source": "root/etc/init.d/podkop-tools",
     "target": "etc/init.d/podkop-tools",
     "mode": 493,
-    "sha256": "da6ad9938bfce2207088d3bc3b1d56a7b81f703199dbc75de6b0c1f96b8f57f1"
+    "sha256": "154038aa5bb0198e945af2ffd9d95110498f52cfd880d6f79f5dafcd402da0b1"
   },
   {
     "source": "root/lib/upgrade/keep.d/podkop-tools",
@@ -39,7 +39,7 @@
     "source": "root/usr/libexec/podkop-tools/backend.uc",
     "target": "usr/libexec/podkop-tools/backend.uc",
     "mode": 420,
-    "sha256": "6ea1693115efa1c5c31eca276e50a439fd5db796c68d33fcb1a71c5323d340e3"
+    "sha256": "9d0c4f317f3e4027b7795718641982d3493c7e714500273b74fd266372694207"
   },
   {
     "source": "root/usr/libexec/podkop-tools/boot",
@@ -51,7 +51,7 @@
     "source": "root/usr/libexec/podkop-tools/generate",
     "target": "usr/libexec/podkop-tools/generate",
     "mode": 493,
-    "sha256": "f3e47593673f6e81d113fa566eea1e83e86e525151e49046dad93958e4ee7510"
+    "sha256": "0867174f0c9c62bd4df1ceac06a8eeff922d146f69e3e36c7d483e1cab103787"
   },
   {
     "source": "root/usr/libexec/podkop-tools/model.uc",
@@ -63,13 +63,13 @@
     "source": "root/usr/libexec/podkop-tools/task",
     "target": "usr/libexec/podkop-tools/task",
     "mode": 493,
-    "sha256": "5c52999d13432d02cb5c1c0482d4ddf5e53beffe0972307a9b55fa810b1116a3"
+    "sha256": "97258aa79574663c2a0431f73105e504df1a1b72d53c28acc21c04539978e734"
   },
   {
     "source": "root/usr/libexec/rpcd/podkop-tools",
     "target": "usr/libexec/rpcd/podkop-tools",
     "mode": 493,
-    "sha256": "d2d7cad7fca2d063575e151be8c34e699964f94f90e84d2224866ab733e681ed"
+    "sha256": "b0ccbdbe57104d8eabcc5ff2257da29ad2e3b7b2af005b551950232e19c8ff7b"
   },
   {
     "source": "root/usr/share/luci/menu.d/luci-app-subscription-toolkit.json",
@@ -87,7 +87,7 @@
     "source": "root/usr/share/rpcd/acl.d/luci-app-subscription-toolkit.json",
     "target": "usr/share/rpcd/acl.d/luci-app-subscription-toolkit.json",
     "mode": 420,
-    "sha256": "7c7eda0d1eed5a0d84f3af04549bf2e25fb30c33caab74600e31b17822e3a3a1"
+    "sha256": "819cfbdf0b4d45ddc1ccf79c63a1ffd37732820c3a960a9e61495c8ccc6920f3"
   },
   {
     "source": "root/usr/share/subscription-toolkit/LICENSE",
@@ -105,7 +105,7 @@
     "source": "scripts/post-install",
     "target": "usr/share/podkop-tools/post-install",
     "mode": 493,
-    "sha256": "15300c3b9fe5dbe098c1a907ef57f014ec5b6cb0dadf725014a289d0eec72d7a"
+    "sha256": "43e733665307ffb4ef9ff9109bb56c7eea416c80d3db9dc7afbb477c830cc19e"
   },
   {
     "source": "scripts/pre-deinstall",
@@ -118,5 +118,17 @@
     "target": "usr/libexec/podkop-tools/probe-worker",
     "mode": 493,
     "sha256": "e84a2eb5332214f506f37339d3505742e753a43aa8f331ca8e1ea2d5ef8170fd"
+  },
+  {
+    "source": "root/usr/libexec/podkop-tools/policy.uc",
+    "target": "usr/libexec/podkop-tools/policy.uc",
+    "mode": 420,
+    "sha256": "794e63e37409fa7c41bddf6801ae2baf2ac79b598df04b64134b665b3b91141c"
+  },
+  {
+    "source": "root/usr/libexec/podkop-tools/statistics.uc",
+    "target": "usr/libexec/podkop-tools/statistics.uc",
+    "mode": 420,
+    "sha256": "d89572b45676e31f6d6f61201e08c6975653a9b8612941dee7160ecc2013f63c"
   }
 ]

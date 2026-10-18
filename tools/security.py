@@ -9,8 +9,8 @@ import subprocess
 import tempfile
 
 EPOCH = 1700000000
-APK_NAME = 'luci-app-subscription-toolkit-0.1.0-r6.apk'
-SOURCE_NAME = 'luci-subscription-toolkit-0.1.0-r6-source.tar.gz'
+APK_NAME = 'luci-app-subscription-toolkit-0.2.0-r2.apk'
+SOURCE_NAME = 'luci-subscription-toolkit-0.2.0-r2-source.tar.gz'
 RELEASE_FILES = {APK_NAME, SOURCE_NAME, 'SHA256SUMS'}
 # Exact repository-relative directories, never matching a name at another depth.
 LOCAL_DIRECTORIES = {'.git', '.build', 'dist', 'node_modules', 'test-results', 'playwright-report'}

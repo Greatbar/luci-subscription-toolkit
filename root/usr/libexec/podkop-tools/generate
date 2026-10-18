@@ -11,7 +11,19 @@ awk '/^case "\$1" in/ {exit} {print}' /usr/bin/podkop > "$job/functions.sh"
     config_load podkop
     config_get config_path settings config_path
     [ "$config_path" = "$job/generated.json" ]
-    [ "$CONFIG_SECTIONS" = 'settings main' ]
+    for section in $CONFIG_SECTIONS; do
+        case "$section" in settings|main) continue;; esac
+        config_get type "$section" TYPE
+        config_get connection "$section" connection_type
+        if [ "$section" = antigravity ]; then
+            config_get kind "$section" proxy_config_type
+            config_get node_id "$section" subscription_node_id
+            [ "$type" = section ] && [ "$connection" = proxy ] && [ "$kind" = outbound ] && [ "${#node_id}" -eq 64 ] || exit 1
+            case "$node_id" in *[!a-f0-9]*) exit 1;; esac
+            continue
+        fi
+        [ "$type" = section ] && [ "$connection" = exclusion ] || exit 1
+    done
     TMP_RULESET_FOLDER="$job/rulesets"
     rm -f "$TMP_RULESET_FOLDER"/*
     sing_box_init_config

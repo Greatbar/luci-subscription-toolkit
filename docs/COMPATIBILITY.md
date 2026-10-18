@@ -9,13 +9,11 @@
   `54d77dd5714bb4747c4bf061735304d18076de0b`, also byte-identical to the init script
   in the public sing-box 1.13.21-r1 APK used for test-image preparation.
 
-The historical local r6 manifest pinned a different locally built sing-box init.
-Its SHA256 was `e2de58726303b6137bc3bb2f10516045bb29e61ec8f96de4709a21186445da60`.
-The standalone profile pins the official script SHA256
-`24670393ea740833b280925f38e4ee529364f4c22c29539ad26264da2337cfc5`.
+The standalone profile pins the official public init script. Local device
+adaptations and their fingerprints are not shipped in the public package.
 All ten Podkop implementation hashes match the public source byte-for-byte.
 Runtime algorithms, internal filenames, RPC/UCI interfaces and state schemas stay
-at r6. The package name and displayed product titles change for independent branding.
+at the historical r6 baseline; v0.2 adds the documented policy and history extensions. The package name and displayed product titles change for independent branding.
 
 A public build does not certify the home installation or an arbitrary device.
 The addon fails closed on incompatible files or a sing-box version mismatch.

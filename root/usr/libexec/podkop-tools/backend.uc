@@ -1,12 +1,22 @@
 // SPDX-License-Identifier: GPL-2.0-only
 import * as fs from 'fs';
+import { priority_order, observe, reserve_slot, nonemergency_allowed, latency_better, remaining, selection_event } from '/usr/libexec/podkop-tools/policy.uc';
+import { history_record, history_query, history_snapshot, history_restore } from '/usr/libexec/podkop-tools/statistics.uc';
 import { cursor } from 'uci';
 import { canonical, parse_provider, reconcile, plan, proxy_uri, encode, decode, sample, service_sample, deferred_gate } from '/usr/libexec/podkop-tools/model.uc';
 
 const BASE = '/etc/podkop-tools', TMP = '/tmp/podkop-tools', JOB = TMP + '/job';
 let ctx = cursor(), probe_pid = null, batch_request = null;
+let execution_deadline = null, runtime_cache = null;
+function monotime() { return +split(trim(fs.readfile('/proc/uptime')), ' ')[0]; }
+function budget(cap, reserve) {
+    let value = execution_deadline == null ? cap : remaining(execution_deadline, monotime(), cap, reserve ?? 0);
+    if (value < 0.05) die('budget_exhausted');
+    return value;
+}
 function q(v) { return "'" + replace('' + v, /'/g, "'\\''") + "'"; }
 function run(args) {
+    if (execution_deadline != null && args[0] != '/bin/kill') args = ['/usr/bin/timeout', '-s', 'TERM', '' + budget(300), ...args];
     let proc = fs.popen(join(' ', map(args, q)) + ' 9>&- 2>/dev/null', 'r');
     if (!proc) die('process_failed');
     let out = proc.read('all') ?? '', code = proc.close();
@@ -39,26 +49,72 @@ function number(key, fallback, min, max) {
     if (n == null || n < min || n > max) die('invalid_settings');
     return n;
 }
-function runtime() { let r = load('/etc/sing-box/config.json'); if (!r) die('runtime_unavailable'); return r; }
+function runtime() { if (runtime_cache) return runtime_cache; let r = load('/etc/sing-box/config.json'); if (!r) die('runtime_unavailable'); runtime_cache = r; return r; }
 function status_update(values) {
     let status = load(TMP + '/status.json', {});
     for (let k, v in values) status[k] = v;
     save(TMP + '/status.json', status);
 }
-function implementation_compatible() {
-    if (run(['/usr/bin/sha256sum', '-c', '/usr/share/podkop-tools/compat.sha256']).code ||
+function implementation_compatible(force) {
+    let names = ['/usr/share/podkop-tools/compat.sha256', '/usr/bin/sing-box'];
+    let manifest = fs.readfile(names[0]) ?? '';
+    for (let line in split(trim(manifest), '\n')) {
+        let path = split(trim(line), /[[:space:]]+/)[1]; if (path) push(names, path);
+    }
+    let signature = { boot: trim(fs.readfile('/proc/sys/kernel/random/boot_id') ?? ''), files: [] };
+    for (let path in names) {
+        let st = fs.stat(path);
+        if (!st || st.type != 'file') die('incompatible');
+        push(signature.files, [path, st.ino, st.inode, st.size, st.mtime, st.ctime]);
+    }
+    let cache = load(TMP + '/compatibility.json');
+    if (!force && cache && canonical(cache) == canonical(signature)) return;
+    if (run(['/usr/bin/sha256sum', '-c', names[0]]).code ||
         index(must(['/usr/bin/sing-box', 'version'], 'incompatible'), 'sing-box version 1.14.2\n') != 0) die('incompatible');
+    save(TMP + '/compatibility.json', signature);
 }
-function compatible() {
-    implementation_compatible();
-    let sections = 0;
-    ctx.foreach('podkop', 'section', s => { sections++; });
-    if (sections != 1 || ctx.get('podkop', 'main', 'proxy_config_type') != 'selector' ||
+function compatible(force) {
+    implementation_compatible(force);
+    let invalid = false;
+    ctx.foreach('podkop', 'section', section => {
+        if (section['.name'] == 'antigravity') {
+            if (section.connection_type != 'proxy' || section.proxy_config_type != 'outbound' ||
+                !match(section.subscription_node_id ?? '', /^[a-f0-9]{64}$/)) invalid = true;
+        } else if (section['.name'] != 'main' && section.connection_type != 'exclusion') invalid = true;
+    });
+    if (invalid || ctx.get('podkop', 'main', 'proxy_config_type') != 'selector' ||
         ctx.get('podkop', 'settings', 'config_path') != '/etc/sing-box/config.json' ||
         ctx.get('podkop', 'main', 'connection_type') != 'proxy') die('unsupported_main');
     let r = runtime(), selector = filter(r.outbounds, o => o.tag == 'main-out' && o.type == 'selector');
     if (length(selector) != 1 || r.route?.final != 'direct-out') die('unsupported_runtime');
 }
+// Only this explicitly bound profile is additional to the managed MAIN selector.
+function antigravity_node(config, nodes) {
+    if (!config.get('podkop', 'antigravity')) return null;
+    let id = config.get('podkop', 'antigravity', 'subscription_node_id');
+    let found = filter(nodes, n => n.id == id);
+    if (length(found) != 1) die('antigravity_node_missing');
+    return found[0];
+}
+function sync_antigravity(config, nodes) {
+    let node = antigravity_node(config, nodes);
+    if (node && !config.set('podkop', 'antigravity', 'outbound_json', sprintf('%J', node.outbound))) die('staging_failed');
+}
+function antigravity_signature(config) {
+    if (!config.get('podkop', 'antigravity')) return null;
+    let profile;
+    try { profile = json(config.get('podkop', 'antigravity', 'outbound_json') ?? ''); } catch (e) { die('state_conflict'); }
+    return hash(canonical({ id: config.get('podkop', 'antigravity', 'subscription_node_id'), profile }));
+}
+function verify_antigravity(config, nodes, generated, error) {
+    let node = antigravity_node(config, nodes), actual = filter(generated.outbounds, o => o.tag == 'antigravity-out');
+    if (!node) { if (length(actual)) die(error); return; }
+    let configured;
+    try { configured = json(config.get('podkop', 'antigravity', 'outbound_json') ?? ''); } catch (e) { die(error); }
+    let expected = json(sprintf('%J', node.outbound)); expected.tag = 'antigravity-out';
+    if (canonical(configured) != canonical(node.outbound) || length(actual) != 1 || canonical(actual[0]) != canonical(expected)) die(error);
+}
+function main_profiles(config) { return filter(config.outbounds, o => o.type == 'vless' && o.tag != 'antigravity-out'); }
 function curl_escape(v) { return '"' + replace(replace('' + v, /\\/g, '\\\\'), /"/g, '\\"') + '"'; }
 function check_url(url) {
     if (type(url) != 'string' || !match(url, /^https:\/\/[^@\/]+\//) || match(url, /[[:space:][:cntrl:]]/)) die('invalid_url');
@@ -72,14 +128,14 @@ function curl_request(url, proxy, output, seconds, cap, method, payload, secret)
     if (payload) content += 'data = ' + curl_escape(payload) + '\nheader = "Content-Type: application/json"\n';
     if (secret) content += 'header = ' + curl_escape('Authorization: Bearer ' + secret) + '\n';
     fs.writefile(JOB + '/curl.cfg', content); fs.chmod(JOB + '/curl.cfg', 0600);
-    let r = run(['/usr/bin/curl', '--disable', '--proto', '=https', '--proto-redir', '=https', '--max-redirs', '0', '--config', JOB + '/curl.cfg', '--silent', '--connect-timeout', '3', '--max-time', '' + seconds,
+    let r = run(['/usr/bin/curl', '--disable', '--proto', '=https', '--proto-redir', '=https', '--max-redirs', '0', '--config', JOB + '/curl.cfg', '--silent', '--connect-timeout', '3', '--max-time', '' + budget(seconds, 0.2),
         '--max-filesize', '' + cap, '--output', output, '--write-out', '%{json}', '--header', 'Accept-Encoding: identity']);
     let metrics = {};
     try { metrics = json(r.out); } catch (e) { }
     fs.unlink(JOB + '/curl.cfg');
     return { code: r.code, metrics };
 }
-function api(path, method, payload) {
+function api(path, method, payload, probe) {
     let api = runtime().experimental?.clash_api;
     let address = api?.external_controller;
     if (!match(address ?? '', /^([0-9]{1,3}\.){3}[0-9]{1,3}:[0-9]{1,5}$/)) die('api_unavailable');
@@ -91,9 +147,17 @@ function api(path, method, payload) {
     if (payload) content += 'data = ' + curl_escape(sprintf('%J', payload)) + '\nheader = "Content-Type: application/json"\n';
     let config_file = ARGV[0] == 'status' ? TMP + '/api-status-' + split(fs.readfile('/proc/self/stat'), ' ')[0] : JOB + '/api.cfg';
     fs.writefile(config_file, content); fs.chmod(config_file, 0600);
-    let result = run(['/usr/bin/curl', '--disable', '-fsS', '--config', config_file, '--connect-timeout', '2', '--max-time', '8']);
+    let args = ['/usr/bin/curl', '--disable', probe ? '-sS' : '-fsS', '--config', config_file, '--connect-timeout', '2', '--max-time', '' + budget(probe ? 6 : 8, 0.2), '--max-filesize', '262144'];
+    if (probe) args = [...args, '--write-out', '\n%{http_code}'];
+    let result = run(args);
     fs.unlink(config_file);
     if (result.code) die('api_unavailable');
+    if (probe) {
+        let parts = split(result.out, '\n'), code = int(pop(parts));
+        if (code == 503 || code == 504) return { failed: true };
+        if (code != 200) die('api_unavailable');
+        result.out = join('\n', parts);
+    }
     if (!length(result.out)) return {};
     try { return json(result.out); } catch (e) { die('api_unavailable'); }
 }
@@ -149,7 +213,8 @@ function server_selection(state) {
     if (live.connection_type != 'proxy' || live.proxy_config_type != 'selector' || canonical(live) != canonical(expected)) die('state_conflict');
     let group = api('/proxies/main-out'), r = runtime();
     if (canonical(group.all) != canonical(map(state.nodes, (n, i) => sprintf('main-%d-out', i + 1)))) die('state_conflict');
-    let actual = filter(r.outbounds, o => o.type == 'vless');
+    verify_antigravity(cursor(), state.nodes, r, 'state_conflict');
+    let actual = main_profiles(r);
     if (length(actual) != length(state.nodes)) die('state_conflict');
     for (let i = 0; i < length(state.nodes); i++) {
         let o = filter(actual, x => x.tag == group.all[i])[0];
@@ -264,6 +329,7 @@ function start_probe_set(outbounds) {
     if (!probe_pid || probe_pid < 2) die('probe_start_failed');
     fs.writefile(JOB + '/probe.pid', '' + probe_pid);
     for (let i = 0; i < 160; i++) {
+        budget(5, 0.5);
         if (probe_port_open(16902 + length(outbounds) - 1)) return 'http://127.0.0.1:16902';
         if (!fs.stat('/proc/' + probe_pid)) die('probe_start_failed');
         sleep(25);
@@ -286,9 +352,8 @@ function health(node) {
     } catch (e) { stop_probe(); return false; }
 }
 function healthy_fallback(nodes, chosen) {
-    let wanted = cfg('fallback_id', '');
-    let order = filter(nodes, n => n.id != chosen && n.id == wanted);
-    for (let n in nodes) if (n.id != chosen && n.id != wanted) push(order, n);
+    let meta=load(BASE+'/selection.json',{});
+    let order=filter(priority_order(nodes,meta.preferred_id,priorities()),n=>n.id!=chosen);
     let deadline = time() + 90;
     for (let node in order) {
         if (time() >= deadline) break;
@@ -339,12 +404,14 @@ function stage(candidate) {
     candidate.staged_from = filehash('/etc/config/podkop');
     must(['/bin/cp', '/etc/config/podkop', JOB + '/uci/podkop'], 'staging_failed');
     let staged = cursor(JOB + '/uci', JOB + '/delta', '');
+    sync_antigravity(staged, candidate.nodes);
     if (!staged.set('podkop', 'main', 'selector_proxy_links', map(candidate.nodes, proxy_uri)) ||
         !staged.set('podkop', 'settings', 'config_path', JOB + '/generated.json') || !staged.commit('podkop')) die('staging_failed');
     must(['/usr/libexec/podkop-tools/generate'], 'generation_failed');
     must(['/usr/bin/sing-box', 'check', '-c', JOB + '/generated.json'], 'validation_failed');
     let generated = load(JOB + '/generated.json');
-    let actual = filter(generated.outbounds, o => o.type == 'vless');
+    verify_antigravity(staged, candidate.nodes, generated, 'generated_nodes_mismatch');
+    let actual = main_profiles(generated);
     if (length(actual) != length(candidate.nodes)) die('generated_nodes_mismatch');
     for (let i = 0; i < length(actual); i++) {
         let expected = json(sprintf('%J', candidate.nodes[i].outbound)); expected.tag = sprintf('main-%d-out', i + 1);
@@ -367,16 +434,47 @@ function accept_snapshot(state, nodes, selected, verified_at, skipped) {
     save(BASE + '/pending.json', candidate);
     status_update({ state: 'pending', pending: true, pending_since: candidate.first_seen });
 }
+function selection_state(state, boot) {
+    let actual = actual_selection(state), old = load(BASE + '/selection.json', {});
+    if (old.intent?.profile && old.intent.profile != hash(canonical(filter(state.nodes,n=>n.id==old.intent.to)[0]?.outbound))) delete old.intent;
+    let current = selection_event(old, actual, time(), boot);
+    if (!old.preferred_id) {
+        current.origin = boot ? 'boot_adopted_unknown' : 'migrated';
+        current.version = 1;
+        let fallback = cfg('fallback_id', '');
+        if (fallback && !ctx.get('podkop_tools','main','priority_ids')) {
+            ctx.set('podkop_tools','main','priority_ids',[fallback]); ctx.commit('podkop_tools');
+        }
+    }
+    if (canonical(current) != canonical(old)) save(BASE + '/selection.json', current);
+    return current;
+}
+function record_history(id, ok, delay, reason) {
+    if (fs.stat(BASE + '/history.json.gz') && !fs.stat(TMP + '/history-ready')) return;
+    try { history_record(id, time(), ok, delay, reason); } catch (e) { }
+}
 function select_node(state, id, reason) {
+    implementation_compatible(true);
     let position = index(map(state.nodes, n => n.id), id);
     if (position < 0) die('unknown_node');
+    let meta = load(BASE + '/selection.json', { preferred_id: state.selected_id, selected_id: state.selected_id, version: 1 });
+    let from = meta.selected_id;
+    if (reason == 'selected') { meta.preferred_id = id; meta.origin = 'manual'; }
+    meta.intent = { from, to: id, reason, profile: hash(canonical(state.nodes[position].outbound)), at: time() }; save(BASE + '/selection.json', meta);
     api('/proxies/main-out', 'PUT', { name: sprintf('main-%d-out', position + 1) });
     if (api('/proxies/main-out').now != sprintf('main-%d-out', position + 1)) die('selection_failed');
     state.selected_id = id; save_state(BASE + '/state.json', state);
+    meta = selection_event(meta, id, time()); meta.last_switch = time();
+    meta.transitions = filter(meta.transitions ?? [], t => time() >= t && time()-t < 1800);
+    if (from != id) { if (reason != 'outage' && reason != 'recovered_from_saved_snapshot' && reason != 'selected') push(meta.transitions, time()); record_history(id, null, null, 'switch_' + reason); }
+    save(BASE + '/selection.json', meta);
     fs.unlink(TMP + '/health.json');
+    fs.unlink(TMP + '/health-v2.json');
+    fs.unlink(TMP + '/recovery-v2.json');
     status_update({ state: reason, selected_id: id, control: null });
 }
 function rollback() {
+    implementation_compatible(true);
     let backup = BASE + '/rollback', tx = load(BASE + '/transaction.json');
     if (!fs.stat(backup + '/podkop')) die('rollback_unavailable');
     if (run(['/usr/bin/sha256sum', '-c', backup + '/SHA256SUMS']).code) die('rollback_failed');
@@ -389,6 +487,8 @@ function rollback() {
         if (filehash(backup + '/state.json') != tx.backup_state ||
             (live != tx.after_managed && live != tx.before_managed) ||
             (filehash(BASE + '/state.json') != tx.before_state && filehash(BASE + '/state.json') != tx.after_state)) die('recovery_conflict');
+        let ag = antigravity_signature(cursor());
+        if (ag != (tx.antigravity_before ?? null) && ag != (tx.antigravity_after ?? null)) die('recovery_conflict');
     } else {
         if (live != current.managed_hash) die('state_conflict');
         actual_selection(current);
@@ -397,8 +497,10 @@ function rollback() {
     let expected = filehash('/etc/config/podkop');
     must(['/bin/cp', '/etc/config/podkop', JOB + '/uci/podkop'], 'staging_failed');
     let staged = cursor(JOB + '/uci', JOB + '/delta', '');
+    sync_antigravity(staged, old.nodes);
     staged.set('podkop', 'main', 'selector_proxy_links', map(old.nodes, proxy_uri)); staged.commit('podkop');
     write_main(JOB + '/uci/podkop', expected);
+    runtime_cache = null;
     must(['/usr/bin/timeout', '-s', 'TERM', '120', '/etc/init.d/podkop', 'reload'], 'rollback_failed');
     for (let i = 0; i < 30; i++) {
         try {
@@ -411,7 +513,8 @@ function rollback() {
     }
     die('rollback_failed');
 }
-function apply_candidate(candidate, urgent) {
+function apply_candidate(candidate, urgent, selection_reason) {
+    implementation_compatible(true);
     let accepted_from = filehash(BASE + '/state.json');
     let state = state_seed(), selected = actual_selection(state);
     if (selected != candidate.before_selected) die('selection_changed');
@@ -430,14 +533,18 @@ function apply_candidate(candidate, urgent) {
     fs.writefile(BASE + '/rollback/SHA256SUMS', checksums); fs.chmod(BASE + '/rollback/SHA256SUMS', 0600);
     // A durable marker makes the next boot/task restore an interrupted apply.
     let transaction = { schema_version: 2, started: time(), before_state: filehash(BASE + '/state.json'), before_managed: state.managed_hash, after_managed: hash(canonical(managed_configuration(candidate.nodes))), before_main: candidate.staged_from, after_main: filehash(JOB + '/uci/podkop') };
+    transaction.antigravity_before = antigravity_signature(cursor());
+    transaction.antigravity_after = antigravity_signature(cursor(JOB + '/uci', JOB + '/delta', ''));
     // Backup state must be the exact pre-write accepted snapshot.
     transaction.backup_state = filehash(BASE + '/rollback/state.json');
     save(BASE + '/transaction.json', transaction);
     try {
         write_main(JOB + '/uci/podkop', candidate.staged_from);
         // Label-only changes are still explicit/deferred apply, but need no reload.
-        if (candidate.runtime_changed)
+        if (candidate.runtime_changed) {
+            runtime_cache = null;
             must(['/usr/bin/timeout', '-s', 'TERM', '120', '/etc/init.d/podkop', 'reload'], 'apply_failed');
+        }
         let success = false;
         for (let i = 0; i < 30; i++) {
             try {
@@ -451,7 +558,7 @@ function apply_candidate(candidate, urgent) {
         seal_state(state);
         transaction.after_state = hash(sprintf('%J', state)); save(BASE + '/transaction.json', transaction);
         save(BASE + '/state.json', state);
-        select_node(state, candidate.selected_id, urgent ? 'recovered' : 'applied');
+        select_node(state, candidate.selected_id, selection_reason ?? (urgent ? 'recovered' : 'applied'));
         let live = runtime(), generated = load(JOB + '/generated.json');
         if (canonical(filter(live.outbounds, o => o.type == 'vless')) != canonical(filter(generated.outbounds, o => o.type == 'vless'))) die('apply_failed');
         actual_selection(state);
@@ -484,7 +591,7 @@ function fetch() {
     if (active) push(paths, active);
     let parsed = null, used = null, started = time();
     for (let path in paths) {
-        if (time() - started >= 40) break;
+        if (time() - started >= 40 || (execution_deadline != null && execution_deadline - monotime() < 2)) break;
         let response;
         try { response = get_through(path.outbound, url, JOB + '/response', 8, 2097152); } catch (e) { stop_probe(); continue; }
         if (response.code || +response.metrics.http_code != 200) continue;
@@ -532,89 +639,205 @@ function apply_pending(manual, approved_version) {
     let candidate = plan(state.nodes, pending.nodes, selected, hash, fallback); candidate.before_selected = selected;
     apply_candidate(candidate, false);
 }
-function recover_active(state, selected) {
-    let fresh = null, fetch_error = null;
-    try { fresh = fetch(); }
-    catch (e) { fetch_error = 'subscription_unavailable_or_invalid'; }
-    let pending = expire_pending();
-    let incoming = fresh?.nodes ?? (pending_fresh(pending) ? pending.nodes : []);
-    let current = filter(state.nodes, n => n.id == selected)[0], candidates = [], seen = {};
-    function add(node) {
-        if (!node || (node.id == selected && canonical(node.outbound) == canonical(current.outbound))) return;
-        let key = canonical(node.outbound);
-        if (!seen[key]) { seen[key] = true; push(candidates, node); }
+function policy_config() {
+    return { failure_seconds: number('failure_seconds',120,1,86400), failure_count: number('failure_count',3,1,100),
+        latency_threshold_ms: number('latency_threshold_ms',1000,1,60000), latency_duration_seconds: number('latency_duration_seconds',300,1,86400),
+        improvement_percent: number('improvement_percent',20,0,100), improvement_ms: number('improvement_ms',50,0,60000),
+        cooldown_seconds: number('cooldown_seconds',600,0,86400) };
+}
+function priorities() { let p=ctx.get('podkop_tools','main','priority_ids') ?? []; return type(p)=='array'?p:[p]; }
+function delay_probe(state,node) {
+    let position=index(map(state.nodes,n=>n.id),node.id);
+    if(position<0) return null;
+    let milliseconds=int(budget(number('probe_timeout_seconds',5,1,5),1)*1000);
+    if(milliseconds<100) return null;
+    try {
+        let result=api('/proxies/main-'+(position+1)+'-out/delay?timeout='+milliseconds+'&url='+encode(cfg('health_url','https://www.gstatic.com/generate_204')),null,null,true);
+        if(result.failed) return {ok:false,delay:null};
+        if(type(result.delay)!='int' && type(result.delay)!='double')return null;
+        return {ok:true,delay:result.delay};
+    } catch(e) { return null; }
+}
+function observed(state,node,now,records,config,preferred) {
+    let key=hash(canonical(node.outbound)), sample=delay_probe(state,node);
+    if(!sample){delete records[node.id];return null;}
+    let old=records[node.id], gap=node.id==preferred && state.selected_id!=preferred?330:90;
+    if(old && (now<old.at || now-old.at>gap))old=null;
+    // Preferred is sampled every five minutes; use an explicit sparse success window.
+    let observation=observe(old,key,now,sample.ok,sample.delay,config);
+    if(node.id==preferred && state.selected_id!=preferred && sample.ok) {
+        observation.successes=old?.ok && old.key==key?(old.successes ?? 0)+1:1;
+        observation.success_since=old?.ok && old.key==key?old.success_since:now;
     }
-    // Updated parameters of the manually selected stable ID always come first.
-    add(filter(incoming, n => n.id == selected)[0]);
-    let preferred = cfg('fallback_id', '');
-    for (let nodes in [state.nodes, incoming]) add(filter(nodes, n => n.id == preferred && n.id != selected)[0]);
-    for (let nodes in [state.nodes, incoming]) for (let node in nodes) if (node.id != selected) add(node);
-    let progress = load(TMP + '/recovery.json', {});
-    let priority = filter(candidates, n => n.id == selected || n.id == preferred), others = filter(candidates, n => n.id != selected && n.id != preferred);
-    let cursor = progress.selected_id == selected && int(progress.cursor) >= 0 ? int(progress.cursor) : 0;
-    if (length(others)) cursor %= length(others); else cursor = 0;
-    let order = map(priority, n => n);
-    for (let i = 0; i < length(others); i++) push(order, others[(cursor + i) % length(others)]);
-    let chosen = null, deadline = time() + 90, examined = 0;
-    for (let i = 0; i < length(order); i++) {
-        if (time() >= deadline) break;
-        let node = order[i];
-        if (i >= length(priority)) examined++;
-        if (health(node)) { chosen = node; break; }
+    records[node.id]=observation;
+    if(!old || observation.at!=old.at)record_history(node.id,sample.ok,sample.delay,null);
+    return observation;
+}
+function activate_verified(state,selected,chosen,reason) {
+    if(actual_selection(state)!=selected)die('selection_changed');
+    let meta=selection_state(state);
+    if(meta.selected_id!=selected)die('selection_changed');
+    // The short search deadline must never kill a started durable transaction.
+    execution_deadline=null;
+    let applied=filter(state.nodes,n=>n.id==chosen.id && canonical(n.outbound)==canonical(chosen.outbound))[0];
+    if(applied)select_node(state,chosen.id,reason);
+    else {
+        let nodes=map(state.nodes,n=>n.id==chosen.id?chosen:n);
+        if(!length(filter(nodes,n=>n.id==chosen.id)))push(nodes,chosen);
+        let candidate=plan(state.nodes,nodes,selected,hash,chosen.id);
+        candidate.before_selected=selected;candidate.selected_id=chosen.id;
+        let position=index(map(state.nodes,n=>n.id),selected), target=index(map(candidate.nodes,n=>n.id),chosen.id);
+        let temp=candidate.nodes[position];candidate.nodes[position]=candidate.nodes[target];candidate.nodes[target]=temp;
+        candidate.selected_tag=sprintf('main-%d-out',position+1);
+        status_update({state:'recovery_apply',recovery_stage:'apply'});
+        apply_candidate(candidate,true,chosen.id==selected?'profile_update':reason);
     }
-    // Continue a budget-limited scan next time instead of starving later reserves.
-    progress.selected_id = selected;
-    progress.cursor = length(others) ? (cursor + examined) % length(others) : 0;
-    save(TMP + '/recovery.json', progress);
-    if (actual_selection(state) != selected) die('selection_changed');
-    if (!chosen) {
-        status_update({ state: 'recovery_no_verified_candidate', recovery_fetch_error: fetch_error }); return;
+    fs.unlink(TMP+'/recovery-v2.json');
+}
+function strict_measure(node, seconds) {
+    let outer=execution_deadline, result=null;
+    execution_deadline=outer==null?monotime()+seconds:min(outer,monotime()+seconds);
+    try {
+        let response=get_through(node.outbound,cfg('health_url','https://www.gstatic.com/generate_204'),'/dev/null',seconds,65536);
+        result={ok:response.code==0 && +response.metrics.http_code==204,delay:int(+response.metrics.time_total*1000)};
+    } catch(e) { stop_probe();result={ok:null,delay:null}; }
+    execution_deadline=outer;return result;
+}
+function strict_probe(node, seconds) { return strict_measure(node,seconds).ok; }
+function recover_active(state,selected) {
+    let node=filter(state.nodes,n=>n.id==selected)[0], signature=hash(canonical(node.outbound));
+    let progress=load(TMP+'/recovery-v2.json',{}), now=time();
+    if(progress.selected_id!=selected || progress.signature!=signature)progress={selected_id:selected,signature,stage:'confirm',cursor:0,seen:{},fetch_at:0};
+    let instant=monotime(), boot=trim(fs.readfile('/proc/sys/kernel/random/boot_id'));
+    if(progress.boot==boot && progress.attempt_mono!=null && instant>=progress.attempt_mono && instant-progress.attempt_mono<60){status_update({state:'recovery_wait'});return;}
+    progress.boot=boot;progress.attempt_mono=instant;save(TMP+'/recovery-v2.json',progress);
+    execution_deadline=instant+45;
+    if(progress.stage=='confirm') {
+        let confirmation=strict_probe(node,5);
+        if(confirmation==null){status_update({state:'control_unknown'});return;}
+        if(confirmation){fs.unlink(TMP+'/recovery-v2.json');status_update({state:'control_recovered'});return;}
+        progress.stage='fetch';record_history(selected,null,null,'outage');
+        save(TMP+'/recovery-v2.json',progress);
     }
-    let applied = filter(state.nodes, n => n.id == chosen.id && canonical(n.outbound) == canonical(chosen.outbound))[0];
-    if (applied) {
-        state.last_recovery = time();
-        select_node(state, chosen.id, 'recovered_from_saved_snapshot');
-    } else {
-        // Change only the verified active profile; unrelated subscription updates stay deferred.
-        let nodes = map(state.nodes, n => n.id == chosen.id ? chosen : n);
-        if (!length(filter(nodes, n => n.id == chosen.id))) push(nodes, chosen);
-        let candidate = plan(state.nodes, nodes, selected, hash, chosen.id);
-        candidate.before_selected = selected; candidate.selected_id = chosen.id;
-        let position = index(map(state.nodes, n => n.id), selected), target = index(map(candidate.nodes, n => n.id), chosen.id);
-        let temp = candidate.nodes[position]; candidate.nodes[position] = candidate.nodes[target]; candidate.nodes[target] = temp;
-        candidate.selected_tag = sprintf('main-%d-out', position + 1);
-        apply_candidate(candidate, true);
+    let meta=selection_state(state);
+    if(progress.stage=='fetch') {
+        let outer=execution_deadline;
+        execution_deadline=min(outer-2,monotime()+15);
+        try { fetch();progress.fetch_error=null; } catch(e){stop_probe();progress.fetch_error='subscription_unavailable_or_invalid';}
+        execution_deadline=outer;
+        progress.fetch_at=now;progress.stage='same';save(TMP+'/recovery-v2.json',progress);
     }
-    if (length(incoming)) {
-        let accepted = load(BASE + '/state.json');
-        accept_snapshot(accepted, incoming, chosen.id, fresh?.verified_at ?? pending.verified_at, fresh?.skipped ?? pending.skipped);
+    let pending=expire_pending(), incoming=pending_fresh(pending)?pending.nodes:[];
+    let candidates=[], seen={};
+    function add(n){if(!n)return;let key=hash(canonical(n.outbound));if(!seen[key]){push(candidates,n);seen[key]=true;}}
+    // Current stable ID with provider-rotated parameters precedes all reserves.
+    let changed=filter(incoming,n=>n.id==selected && canonical(n.outbound)!=canonical(node.outbound))[0];
+    add(changed);
+    let order=priority_order([...incoming,...state.nodes],meta.preferred_id,priorities());
+    for(let n in order)if(n.id!=selected)add(n);
+    // Include saved profiles even when provider offers an unreachable new revision.
+    for(let n in priority_order(state.nodes,meta.preferred_id,priorities()))if(n.id!=selected)add(n);
+    let search_end=min(execution_deadline-2,monotime()+20), exhausted=true;
+    for(let candidate in candidates) {
+        let key=hash(canonical(candidate.outbound));
+        if(progress.seen[key])continue;
+        if(search_end-monotime()<7){exhausted=false;break;}
+        progress.stage=candidate.id==selected?'same':'reserves';progress.cursor++;
+        let ok=strict_probe(candidate,5);
+        if(ok==null){exhausted=false;break;}
+        progress.seen[key]=true;save(TMP+'/recovery-v2.json',progress);
+        if(ok){
+            if(actual_selection(state)!=selected)die('selection_changed');
+            // A late external choice cancels the recovery rather than being overwritten.
+            let current=selection_state(state);
+            if(current.preferred_id!=meta.preferred_id)die('selection_changed');
+            activate_verified(state,selected,candidate,'outage');return;
+        }
     }
-    status_update({ recovery_fetch_error: fetch_error, recovery_at: time(), error: null,
-        control: { selected_id: chosen.id, ok: true, at: time(), failures: 0, basis: 'HTTPS_HTTP_204' } });
+    if(exhausted){progress.seen={};progress.cursor=0;progress.stage='reserves';}
+    // A long reserve scan must not postpone provider updates for tens of minutes.
+    // Continuing passes check reserves FIRST; the due fetch uses only its own
+    // leftover slice and never resets the cursor or already examined profiles.
+    if(now-progress.fetch_at>=300 && execution_deadline-monotime()>=17){
+        let outer=execution_deadline;execution_deadline=min(outer-2,monotime()+15);
+        try{fetch();progress.fetch_error=null;}catch(e){stop_probe();progress.fetch_error='subscription_unavailable_or_invalid';}
+        execution_deadline=outer;progress.fetch_at=now;
+    }
+    save(TMP+'/recovery-v2.json',progress);
+    status_update({state:'recovery_no_verified_candidate',recovery_fetch_error:progress.fetch_error});
 }
 function check_active() {
     expire_pending();
-    let state = state_seed(), selected = actual_selection(state), node = filter(state.nodes, n => n.id == selected)[0];
-    let minutes = number('health_minutes', 15, 5, 60), key = hash(canonical({ id: selected, outbound: node.outbound })), previous = load(TMP + '/health.json');
-    let ok = health(node), now = time();
-    if (actual_selection(state) != selected) die('selection_changed');
-    let consecutive = previous?.key == key && now >= previous.checked_at && now - previous.checked_at <= minutes * 120 + 300;
-    let failures = ok ? 0 : consecutive ? previous.failures : 0;
-    let gap = minutes * 60 - 30; // Allow probe-duration jitter between cron ticks.
-    // A rapid retry cannot turn one failed observation into a confirmed outage.
-    if (!ok && (!consecutive || now - previous.checked_at >= gap)) failures++;
-    let observation = { key, selected_id: selected, checked_at: now, failures, ok, first_failed_at: ok ? null : consecutive && previous.failures > 0 ? previous.first_failed_at : now };
-    if (!ok && consecutive && now - previous.checked_at < gap) observation.checked_at = previous.checked_at;
-    save(TMP + '/health.json', observation);
-    status_update({ state: 'control_checked', control: { selected_id: selected, ok, at: now, failures, basis: 'HTTPS_HTTP_204' } });
-    if (ok || failures < 2 || cfg('priority_recovery', '1') != '1') return;
-    let recovery = load(TMP + '/recovery.json', {}), last = recovery.last_attempt ?? 0, persisted = state.last_recovery ?? state.last_urgent ?? 0;
-    if (persisted > last) last = persisted;
-    if (now - last < 1800) { status_update({ state: 'recovery_cooldown' }); return; }
-    recovery.last_attempt = now;
-    save(TMP + '/recovery.json', recovery);
-    recover_active(state, selected);
+    let state=state_seed(), meta=selection_state(state), selected=actual_selection(state);
+    let config=policy_config(), now=time(), tick_mono=monotime(), boot=trim(fs.readfile('/proc/sys/kernel/random/boot_id'));
+    state.selected_id=selected;
+    let health_state=load(TMP+'/health-v2.json',{boot,records:{},cursor:0});
+    let clock_delta=health_state.mono!=null ? (now-health_state.at)-(monotime()-health_state.mono) : 0;
+    let clock_changed=clock_delta>5 || clock_delta < -5;
+    if(health_state.boot!=boot || clock_changed){health_state={boot,records:{},cursor:0};fs.unlink(TMP+'/recovery-v2.json');}
+    let progress=load(TMP+'/recovery-v2.json');
+    if(progress && progress.selected_id==selected && cfg('priority_recovery','1')=='1'){recover_active(state,selected);return;}
+    if(health_state.at!=null && now>=health_state.at && now-health_state.at<45)return;
+    let active=filter(state.nodes,n=>n.id==selected)[0];
+    let current=observed(state,active,now,health_state.records,config,meta.preferred_id);
+    let slot=reserve_slot(state.nodes,selected,meta.preferred_id,health_state,now), reserve=null;
+    let pending=expire_pending(), pending_preferred=filter(pending?.nodes ?? [],n=>n.id==meta.preferred_id)[0];
+    if(slot && execution_deadline-monotime()>2) {
+        let node=filter(state.nodes,n=>n.id==slot.id)[0];
+        if (slot.id==meta.preferred_id && selected!=meta.preferred_id && pending_fresh(pending) && pending_preferred && canonical(pending_preferred.outbound)!=canonical(node.outbound)) {
+            // Recovery of a provider-rotated preferred profile is exceptional work,
+            // not a third normal probe or a permanent probe process.
+            execution_deadline=monotime()+15;
+            let key=hash(canonical(pending_preferred.outbound)), old=health_state.records[node.id];
+            if(old && (old.key!=key || now<old.at || now-old.at>330))old=null;
+            let ok=strict_probe(pending_preferred,5);
+            if(ok==null){delete health_state.records[node.id];} else {
+            reserve=observe(old,key,now,ok,null,config);
+            if(ok){reserve.successes=old?.ok?(old.successes ?? 0)+1:1;reserve.success_since=old?.ok?old.success_since:now;}
+            health_state.records[node.id]=reserve;record_history(node.id,ok,null,null);
+            }
+        } else reserve=observed(state,node,now,health_state.records,config,meta.preferred_id);
+        if(reserve){health_state.cursor=slot.cursor;health_state.preferred_at=slot.preferred_at;}
+    }
+    if(actual_selection(state)!=selected)die('selection_changed');
+    health_state.at=now;health_state.mono=tick_mono;save(TMP+'/health-v2.json',health_state);
+    status_update({state:'control_checked',error:null,control:{selected_id:selected,ok:current?.ok,at:now,failures:current?.failures ?? 0,basis:'HTTPS_CONTROL_ENDPOINT',delay:current?.delay}});
+    if(cfg('priority_recovery','1')!='1')return;
+    if(current?.confirmed){recover_active(state,selected);return;}
+    if(!current?.ok || !nonemergency_allowed(meta,now,config))return;
+    let target=null, reason=null;
+    let preferred=health_state.records[meta.preferred_id];
+    if(selected!=meta.preferred_id && cfg('failback_enabled','1')=='1' && preferred?.ok &&
+        preferred.successes>=number('failback_successes',3,1,100) && now-preferred.success_since>=number('failback_seconds',600,1,86400) && now-preferred.at<=360) {
+        target=pending_fresh(pending) && pending_preferred && hash(canonical(pending_preferred.outbound))==preferred.key?pending_preferred:filter(state.nodes,n=>n.id==meta.preferred_id)[0];reason='failback';
+    } else if(cfg('latency_enabled','0')=='1' && current.high) {
+        target=filter(priority_order(state.nodes,meta.preferred_id,priorities()),n=>n.id!=selected && health_state.records[n.id]?.ok)[0];reason='latency';
+    }
+    // Comparison and strict verification are a separate bounded exceptional phase.
+    if(target){
+        execution_deadline=monotime()+30;
+        let a=delay_probe(state,active), live=filter(state.nodes,n=>n.id==target.id)[0];
+        let changed=canonical(live?.outbound)!=canonical(target.outbound);
+        let b=changed?strict_measure(target,5):delay_probe(state,target);
+        let acceptable=reason=='failback'?(cfg('latency_enabled','0')!='1' || (b.delay!=null && b.delay<=config.latency_threshold_ms*0.8)):latency_better(a?.delay,b?.delay,config);
+        if(a?.ok && b?.ok && acceptable && strict_probe(target,5)) {
+            if(actual_selection(state)!=selected)die('selection_changed');
+            activate_verified(state,selected,target,reason);
+        }
+        return;
+    }
+    // Subscription refresh while on reserve is recovery work, never ordinary monitoring.
+    if(selected!=meta.preferred_id){
+        let refresh=load(TMP+'/reserve-fetch.json',{at:now});
+        if(!fs.stat(TMP+'/reserve-fetch.json'))save(TMP+'/reserve-fetch.json',refresh);
+        if(now-refresh.at>=900){
+            execution_deadline=monotime()+15;
+            try{fetch();}catch(e){stop_probe();}
+            save(TMP+'/reserve-fetch.json',{at:now});
+        }
+    }
 }
+
 function speed(id) {
     let state = state_seed(); actual_selection(state);
     let node = filter(state.nodes, n => n.id == id)[0]; if (!node) die('unknown_node');
@@ -824,13 +1047,19 @@ function batch(request) {
 function public_status() {
     let state = load(BASE + '/state.json', {}), pending = load(BASE + '/pending.json'), status = load(TMP + '/status.json', {}), tests = load(TMP + '/tests.json', {});
     status.compatible = true;
-    try { implementation_compatible(); } catch (e) { status.compatible = false; status.error = 'incompatible'; }
+    try { compatible(false); if (index(['incompatible','unsupported_main','unsupported_runtime'], status.error)>=0) delete status.error; } catch (e) { status.compatible = false; status.error = e.message; }
     status.subscription_configured = !!ctx.get('podkop_tools_subscription', 'main', 'url');
     status.speed_bytes = number('speed_bytes', 4194304, 262144, 16777216);
     let service_url = cfg('service_url', 'https://web.telegram.org/k/');
     status.service_name = match(service_url, /^https:\/\/web\.telegram\.org\//) ? 'Telegram Web' : match(service_url, /^https:\/\/([^\/]+)/)?.[1] ?? 'Проверка HTTPS';
     if (match(ARGV[1] ?? '', /^[a-f0-9]{64}$/)) status.batch = load(TMP + '/batch-' + ARGV[1] + '.json');
     status.speed_next_at = 0; // Retained RPC field: there is no global speed cooldown.
+    let selection = load(BASE + '/selection.json', {});
+    status.preferred_id = selection.preferred_id ?? state.selected_id;
+    status.selection_origin = selection.origin ?? 'unmigrated';
+    status.last_switch_reason = selection.reason;
+    status.recovery = load(TMP + '/recovery-v2.json', {});
+    status.policy = { latency_enabled: cfg('latency_enabled','0') == '1', cooldown_until: (selection.last_switch ?? 0) + number('cooldown_seconds',600,60,86400) };
     status.enabled = cfg('enabled', '0') == '1'; status.selected_id = state.selected_id; status.last_apply = state.last_apply;
     status.pending = pending != null; status.count = length(state.nodes ?? []); status.pending_count = length(pending?.nodes ?? []);
     status.pending_version = pending?.source_hash;
@@ -869,6 +1098,7 @@ function task_log(result) {
     if (index(['check', 'health', 'due'], ARGV[0]) < 0) return;
     try {
         let s = load(TMP + '/status.json', {}), state = load(BASE + '/state.json', {});
+        if (ARGV[0] == 'health' && result == 'ok' && s.state == 'control_checked') return;
         run(['logger', '-t', 'podkop-tools', sprintf('task=%s result=%s state=%s servers=%d pending=%s',
             ARGV[0], result, s.state ?? 'unknown', length(state.nodes ?? []), fs.stat(BASE + '/pending.json') ? 'yes' : 'no')]);
     } catch (e) { /* Diagnostics cannot turn a committed operation into a failure. */ }
@@ -884,6 +1114,9 @@ let command = ARGV[0], id = ARGV[1];
 // Read RPC stdin before spawning helpers, which otherwise inherit it.
 let source_payload = command == 'source' ? fs.stdin.read(8193) : null;
 try {
+    if (command == 'history-restore') { history_restore(); fs.writefile(TMP + '/history-ready','1'); print('{"ok":true}\n'); exit(0); }
+    if (command == 'statistics') { try { history_restore(); fs.writefile(TMP + '/history-ready','1'); } catch(e) {} print(sprintf('%J\n', history_query(id, ARGV[2]))); exit(0); }
+    if (command == 'history-save') { if (cfg('enabled','0') == '1') history_snapshot(time()); print('{"ok":true}\n'); exit(0); }
     if (command == 'status') { print(sprintf('%J\n', public_status())); exit(0); }
     if (command == 'batch') {
         try { batch_request = json(id); } catch (e) { die('invalid_settings'); }
@@ -895,7 +1128,8 @@ try {
         implementation_compatible(); rollback(); fs.unlink(BASE + '/transaction.json');
         if (command == 'rollback') { print('{"ok":true}\n'); exit(0); }
     }
-    compatible();
+    if (command == 'health') execution_deadline = monotime() + 15;
+    compatible(command != 'health');
     if (command == 'source') {
         let payload = source_payload;
         if (!payload || length(payload) > 8192) die('invalid_url');
@@ -922,7 +1156,7 @@ try {
     else if (command == 'batch') batch(batch_request);
     else if (command == 'restore') {
         let state = load(BASE + '/state.json');
-        if (state) { actual_selection(state); select_node(state, state.selected_id, 'restored'); }
+        if (state) { selection_state(state, true); }
     }
     else if (command == 'rollback') { rollback(); fs.unlink(BASE + '/transaction.json'); }
     else die('invalid_command');
@@ -933,11 +1167,12 @@ try {
 } catch (e) {
     stop_probe();
     // Never serialize parser/native/curl exceptions or credentials into diagnostics.
-    let known = ['incompatible', 'unsupported_main', 'unsupported_runtime', 'api_unavailable', 'runtime_unavailable', 'state_conflict',
+    let known = ['budget_exhausted', 'incompatible', 'unsupported_main', 'unsupported_runtime', 'api_unavailable', 'runtime_unavailable', 'state_conflict',
         'uci_changed', 'uci_changed_after_write', 'uci_busy', 'recovery_conflict', 'recovery_required', 'invalid_url', 'invalid_settings', 'unknown_node', 'validation_failed', 'generation_failed', 'generated_nodes_mismatch', 'routing_changed',
-        'subscription_unavailable_or_invalid', 'fallback_not_verified', 'ambiguous_identity', 'unrepresentable_stock_uri',
+        'subscription_unavailable_or_invalid', 'fallback_not_verified', 'ambiguous_identity', 'unrepresentable_stock_uri', 'antigravity_node_missing',
         'apply_rolled_back', 'rollback_failed', 'rollback_unavailable', 'selection_changed', 'speed_cooldown', 'router_busy', 'probe_start_failed',
         'pending_changed', 'pending_expired', 'selected_endpoint_unreachable', 'batch_failed', 'speed_cap_changed'];
+    if (command == 'health' && !fs.stat(BASE + '/transaction.json')) fs.unlink(TMP + '/health-v2.json');
     let code = index(known, e.message) >= 0 ? e.message : 'operation_failed';
     status_update({ state: 'error', error: code });
     if (batch_request?.token && match(batch_request.token, /^[a-f0-9]{64}$/)) batch_receipt({ token: batch_request.token, state: 'failed', done: 0, total: length(batch_request.ids ?? []), error: code });
