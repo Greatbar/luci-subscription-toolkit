@@ -4,12 +4,14 @@ START=100
 USE_PROCD=1
 
 reload_service() {
-    local enabled hours minutes old
+    local enabled hours minutes apply_hour old
     enabled=$(uci -q get podkop_tools.main.enabled) || enabled=0
     hours=$(uci -q get podkop_tools.main.fetch_hours) || hours=6
     minutes=$(uci -q get podkop_tools.main.health_minutes) || minutes=1
+    apply_hour=$(uci -q get podkop_tools.main.apply_hour) || apply_hour=3
     case "$hours" in 1|2|3|4|6|8|12|24) ;; *) return 1;; esac
     case "$minutes" in 1) ;; *) return 1;; esac
+    case "$apply_hour" in [0-9]|0[0-9]|1[0-9]|2[0-3]) ;; *) return 1;; esac
     old=$(crontab -l 2>/dev/null || :)
     {
         printf '%s\n' "$old" | sed '/# podkop-tools$/d'
@@ -17,7 +19,9 @@ reload_service() {
             printf '23 */%s * * * /usr/libexec/podkop-tools/task check >/dev/null 2>&1 # podkop-tools\n' "$hours"
             printf '*/%s * * * * /usr/libexec/podkop-tools/task health >/dev/null 2>&1 # podkop-tools\n' "$minutes"
             printf '17 */6 * * * /usr/libexec/podkop-tools/task history-save >/dev/null 2>&1 # podkop-tools\n'
-            printf '43 * * * * /usr/libexec/podkop-tools/task due >/dev/null 2>&1 # podkop-tools\n'
+            # Retry inside the existing window when a previous apply finished
+            # seconds after yesterday's cron tick. The 24-hour gate stays intact.
+            printf '*/5 %s * * * /usr/libexec/podkop-tools/task due >/dev/null 2>&1 # podkop-tools\n' "$apply_hour"
         fi
     } | crontab -
     # Restore cold history out of the routing lock, including enable-after-boot.

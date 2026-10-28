@@ -33,16 +33,16 @@ def command(*args, check=True, **kwargs):
     return subprocess.run(args, check=check, capture_output=True, text=True, **kwargs)
 
 
-def context(profile):
+def context(profile, suite="compat"):
     podkop, sing_box, directory = PROFILES[profile]
-    return dict(profile=profile, podkop=podkop, sing_box=sing_box,
+    return dict(profile=profile, suite=suite, podkop=podkop, sing_box=sing_box,
                 binary=ROOT / '.build' / directory / 'sing-box',
                 native=ROOT / '.build' / ('podkop-' + podkop) / 'podkop/files',
-                lab=ROOT / '.build/compat' / profile,
-                main='subscription-toolkit-compat-' + profile + '-main',
-                exit='subscription-toolkit-compat-' + profile + '-exit',
-                driver='subscription-toolkit-compat-' + profile + '-driver',
-                network='subscription-toolkit-compat-' + profile)
+                lab=ROOT / ('.build/compat' if suite=='compat' else '.build/integration') / profile,
+                main='subscription-toolkit-' + suite + '-' + profile + '-main',
+                exit='subscription-toolkit-' + suite + '-' + profile + '-exit',
+                driver='subscription-toolkit-' + suite + '-' + profile + '-driver',
+                network='subscription-toolkit-' + suite + '-' + profile)
 
 
 def load_lab(c):
@@ -307,7 +307,11 @@ def scenarios(lab, c, state, start_exit, endpoint):
 def driver(c):
     lab = load_lab(c)
     lab.setup_packages = lambda: None
-    sys.modules['ownership'] = types.SimpleNamespace(custom=lambda state, start_exit, endpoint: scenarios(lab, c, state, start_exit, endpoint))
+    if c['suite']=='integration':
+        import sections_integration
+        run_scenarios=sections_integration.scenarios
+    else:run_scenarios=scenarios
+    sys.modules['ownership'] = types.SimpleNamespace(custom=lambda state, start_exit, endpoint: run_scenarios(lab, c, state, start_exit, endpoint))
     sys.argv = [__file__, '--ownership']
     os.environ['TOOLKIT_SHARED_NAMESPACE'] = '1'
     lab.main()
@@ -339,12 +343,12 @@ def outer(c, preflight):
         shared_args = ['docker', 'run', '--rm', '--name', c['driver'], '--network', 'container:' + c['main'],
                        '--user', str(os.getuid()) + ':' + str(os.getgid()), '--group-add', str(os.stat('/var/run/docker.sock').st_gid),
                        '-e', 'PYTHONDONTWRITEBYTECODE=1', '-e', 'PYTHONUNBUFFERED=1', '-v', str(ROOT) + ':/work:ro',
-                       '-v', str(c['lab']) + ':/work/.build/compat/' + c['profile'], '-v', '/usr/bin/docker:/usr/bin/docker:ro',
+                       '-v', str(c['lab']) + ':/work/' + c['lab'].relative_to(ROOT).as_posix(), '-v', '/usr/bin/docker:/usr/bin/docker:ro',
                        '-v', '/var/run/docker.sock:/var/run/docker.sock', python_image, 'python3', '-B']
         if preflight:
             # Validate the exact image, namespace, Docker access, CA path and curl command used by the real fixture.
             script = """import http.server,pathlib,socket,ssl,subprocess,threading
-base=pathlib.Path('/work/.build/compat/PROFILE')
+base=pathlib.Path('/work/LABREL')
 cert,key=base/'fixture.crt',base/'fixture.key'
 subprocess.run(['openssl','req','-x509','-newkey','rsa:2048','-nodes','-keyout',str(key),'-out',str(cert),'-days','1','-subj','/CN=compat-preflight','-addext','subjectAltName=IP:127.0.0.1'],check=True,capture_output=True)
 class Handler(http.server.BaseHTTPRequestHandler):
@@ -356,7 +360,7 @@ threading.Thread(target=server.serve_forever,daemon=True).start()
 subprocess.run(['docker','exec','-i','MAIN','sh','-c','cat > /tmp/fixture.crt'],input=cert.read_bytes(),check=True)
 subprocess.run(['docker','exec','MAIN','/usr/bin/curl','--disable','--proto','=https','--noproxy','*','--cacert','/tmp/fixture.crt','--silent','--show-error','--fail','--max-time','3','https://127.0.0.1:'+str(server.server_address[1])],check=True)
 server.shutdown();print('PASS exact namespace HTTPS preflight')
-""".replace('PROFILE', c['profile']).replace('MAIN', c['main'])
+""".replace('LABREL', c['lab'].relative_to(ROOT).as_posix()).replace('MAIN', c['main'])
             result = command(*shared_args, '-c', script)
             print(version, end='')
             print(result.stdout, end='')
@@ -364,7 +368,7 @@ server.shutdown();print('PASS exact namespace HTTPS preflight')
         install(c, lab)
         # Existing integration fixture expects this CA before shared-namespace entry.
         command('openssl', 'req', '-x509', '-newkey', 'rsa:2048', '-nodes', '-keyout', str(c['lab'] / 'fixture.key'), '-out', str(c['lab'] / 'fixture.crt'), '-days', '1', '-subj', '/CN=compat-fixture', '-addext', 'subjectAltName=IP:127.0.0.1')
-        subprocess.run([*shared_args, '/work/tests/podkop-tools/compat-integration.py', '--driver', '--profile', c['profile']], check=True)
+        subprocess.run([*shared_args, '/work/tests/podkop-tools/compat-integration.py', '--driver', '--profile', c['profile'], '--suite', c['suite']], check=True)
     except subprocess.CalledProcessError:
         # Synthetic fixture only: reveal the exact backend exception before the
         # normal cleanup removes its namespace. Never enable raw errors in RPC.
@@ -388,10 +392,11 @@ server.shutdown();print('PASS exact namespace HTTPS preflight')
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument('--profile', choices=PROFILES, required=True)
+    parser.add_argument('--suite', choices=['compat','integration'], default='compat')
     parser.add_argument('--preflight', action='store_true')
     parser.add_argument('--driver', action='store_true', help=argparse.SUPPRESS)
     args = parser.parse_args()
-    c = context(args.profile)
+    c = context(args.profile,args.suite)
     driver(c) if args.driver else outer(c, args.preflight)
 
 

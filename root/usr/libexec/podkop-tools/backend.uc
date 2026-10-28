@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 import * as fs from 'fs';
+import * as sections from '/usr/libexec/podkop-tools/sections.uc';
 import { compatibility_report } from '/usr/libexec/podkop-tools/compatibility.uc';
 import { priority_order, observe, reserve_slot, nonemergency_allowed, latency_better, remaining, selection_event } from '/usr/libexec/podkop-tools/policy.uc';
 import { history_record, history_query, history_snapshot, history_restore } from '/usr/libexec/podkop-tools/statistics.uc';
@@ -45,6 +46,8 @@ function atomic_copy(source, target) {
         !fs.chmod(target + '.podkop-tools-new', 0600) || !fs.rename(target + '.podkop-tools-new', target)) die('apply_failed');
 }
 function cfg(key, fallback) { return ctx.get('podkop_tools', 'main', key) ?? fallback; }
+function priorities() { let p=ctx.get('podkop_tools','main','priority_ids') ?? []; return type(p)=='array'?p:[p]; }
+function owns_ag(config) { let marker = config.get('podkop', 'antigravity', 'subscription_node_id'); return type(marker) == 'string' && length(marker) > 0; }
 function number(key, fallback, min, max) {
     let n = int(cfg(key, '' + fallback));
     if (n == null || n < min || n > max) die('invalid_settings');
@@ -56,33 +59,6 @@ function status_update(values) {
     for (let k, v in values) status[k] = v;
     save(TMP + '/status.json', status);
 }
-// Only this explicitly bound profile is additional to the managed MAIN selector.
-function antigravity_node(config, nodes) {
-    if (!config.get('podkop', 'antigravity')) return null;
-    let id = config.get('podkop', 'antigravity', 'subscription_node_id');
-    let found = filter(nodes, n => n.id == id);
-    if (length(found) != 1) die('antigravity_node_missing');
-    return found[0];
-}
-function sync_antigravity(config, nodes) {
-    let node = antigravity_node(config, nodes);
-    if (node && !config.set('podkop', 'antigravity', 'outbound_json', sprintf('%J', node.outbound))) die('staging_failed');
-}
-function antigravity_signature(config) {
-    if (!config.get('podkop', 'antigravity')) return null;
-    let profile;
-    try { profile = json(config.get('podkop', 'antigravity', 'outbound_json') ?? ''); } catch (e) { die('state_conflict'); }
-    return hash(canonical({ id: config.get('podkop', 'antigravity', 'subscription_node_id'), profile }));
-}
-function verify_antigravity(config, nodes, generated, error) {
-    let node = antigravity_node(config, nodes), actual = filter(generated.outbounds, o => o.tag == 'antigravity-out');
-    if (!node) { if (length(actual)) die(error); return; }
-    let configured;
-    try { configured = json(config.get('podkop', 'antigravity', 'outbound_json') ?? ''); } catch (e) { die(error); }
-    let expected = json(sprintf('%J', node.outbound)); expected.tag = 'antigravity-out';
-    if (canonical(configured) != canonical(node.outbound) || length(actual) != 1 || canonical(actual[0]) != canonical(expected)) die(error);
-}
-function main_profiles(config) { return filter(config.outbounds, o => o.type == 'vless' && o.tag != 'antigravity-out'); }
 function curl_escape(v) { return '"' + replace(replace('' + v, /\\/g, '\\\\'), /"/g, '\\"') + '"'; }
 function check_url(url) {
     if (type(url) != 'string' || !match(url, /^https:\/\/[^@\/]+\//) || match(url, /[[:space:][:cntrl:]]/)) die('invalid_url');
@@ -152,14 +128,10 @@ function measurement_requirements() {
     dependency(['/usr/bin/curl', '/usr/bin/timeout']);
 }
 function generation_requirements() {
-    let invalid = false;
-    ctx.foreach('podkop', 'section', section => {
-        if (section['.name'] == 'antigravity') {
-            if (section.connection_type != 'proxy' || section.proxy_config_type != 'outbound' ||
-                !match(section.subscription_node_id ?? '', /^[a-f0-9]{64}$/)) invalid = true;
-        } else if (section['.name'] != 'main' && section.connection_type != 'exclusion') invalid = true;
-    });
-    if (invalid || ctx.get('podkop', 'main', 'proxy_config_type') != 'selector' ||
+    if (owns_ag(ctx) && (ctx.get('podkop', 'antigravity', 'connection_type') != 'proxy' ||
+        index(['outbound', 'selector'], ctx.get('podkop', 'antigravity', 'proxy_config_type')) < 0 ||
+        !match(ctx.get('podkop', 'antigravity', 'subscription_node_id') ?? '', /^[a-f0-9]{64}$/))) die('unsupported_main');
+    if (ctx.get('podkop', 'main', 'proxy_config_type') != 'selector' ||
         ctx.get('podkop', 'main', 'connection_type') != 'proxy' ||
         ctx.get('podkop', 'settings', 'config_path') != '/etc/sing-box/config.json') die('unsupported_main');
     if (run(['/usr/libexec/podkop-tools/generate', '--check']).code) die('generator_unavailable');
@@ -228,6 +200,90 @@ function server_uri(value) {
     }
     return { peer: parts[0], query, name: length(fragment) > 1 ? substr(decoded, index(decoded, '#') + 1) : 'Server' };
 }
+function antigravity_node(config, nodes) {
+    if (!owns_ag(config)) return null;
+    let id = config.get('podkop', 'antigravity', 'subscription_node_id');
+    let found = filter(nodes, n => n.id == id);
+    if (length(found) != 1) die('antigravity_node_missing');
+    return found[0];
+}
+function sync_antigravity(config, nodes, selected) {
+    if (!owns_ag(config)) return;
+    let id = selected ?? config.get('podkop', 'antigravity', 'subscription_node_id');
+    if (!length(filter(nodes, n => n.id == id))) id = nodes[0]?.id;
+    if (!id || !config.set('podkop', 'antigravity', 'proxy_config_type', 'selector') ||
+        !config.set('podkop', 'antigravity', 'subscription_node_id', id) ||
+        !config.set('podkop', 'antigravity', 'selector_proxy_links', map(nodes, proxy_uri))) die('staging_failed');
+    config.delete('podkop', 'antigravity', 'outbound_json');
+}
+function antigravity_signature(config) {
+    if (!owns_ag(config)) return null;
+    let kind = config.get('podkop', 'antigravity', 'proxy_config_type'), profile;
+    if (index(['outbound', 'selector'], kind) < 0) die('state_conflict');
+    if (kind == 'selector') profile = map(config.get('podkop', 'antigravity', 'selector_proxy_links') ?? [], server_uri);
+    else try { profile = json(config.get('podkop', 'antigravity', 'outbound_json') ?? ''); } catch (e) { die('state_conflict'); }
+    // Preserve legacy outbound transaction signatures across package upgrades;
+    // selector arrays and outbound objects already distinguish the two modes.
+    return hash(canonical({ id: config.get('podkop', 'antigravity', 'subscription_node_id'), profile }));
+}
+function verify_antigravity(config, nodes, generated, error) {
+    if (!owns_ag(config)) return;
+    let owned_tags = ['antigravity-out'];
+    if (config.get('podkop', 'antigravity', 'proxy_config_type') == 'selector')
+        owned_tags = [...owned_tags, ...map(nodes, (n, i) => sprintf('antigravity-%d-out', i + 1))];
+    let actual = filter(generated.outbounds, o => index(owned_tags, o.tag) >= 0);
+    if (config.get('podkop', 'antigravity', 'proxy_config_type') == 'selector') {
+        let tags = map(nodes, (n, i) => sprintf('antigravity-%d-out', i + 1));
+        let links = config.get('podkop', 'antigravity', 'selector_proxy_links') ?? [];
+        if (canonical(map(links, server_uri)) != canonical(map(map(nodes, proxy_uri), server_uri)) ||
+            length(actual) != length(nodes) + 1) die(error);
+        let group = filter(actual, o => o.tag == 'antigravity-out')[0];
+        if (group?.type != 'selector' || canonical(group.outbounds) != canonical(tags)) die(error);
+        for (let i = 0; i < length(nodes); i++) {
+            let expected = json(sprintf('%J', nodes[i].outbound)); expected.tag = tags[i];
+            if (canonical(filter(actual, o => o.tag == tags[i])[0]) != canonical(expected)) die(error);
+        }
+        return;
+    }
+    let node = antigravity_node(config, nodes);
+    let configured;
+    try { configured = json(config.get('podkop', 'antigravity', 'outbound_json') ?? ''); } catch (e) { die(error); }
+    let expected = json(sprintf('%J', node.outbound)); expected.tag = 'antigravity-out';
+    if (canonical(configured) != canonical(node.outbound) || length(actual) != 1 || canonical(actual[0]) != canonical(expected)) die(error);
+}
+function antigravity_selection(nodes) {
+    let config = cursor();
+    if (!owns_ag(config)) return null;
+    if (config.get('podkop', 'antigravity', 'proxy_config_type') == 'outbound') return antigravity_node(config, nodes).id;
+    let group = api('/proxies/antigravity-out');
+    if (canonical(group.all) != canonical(map(nodes, (n, i) => sprintf('antigravity-%d-out', i + 1)))) die('state_conflict');
+    let selected = nodes[index(group.all, group.now)]?.id;
+    if (!selected) die('state_conflict');
+    return selected;
+}
+function remember_antigravity(id, reason) {
+    if (!id) return;
+    let old = load(BASE + '/antigravity-selection.json', {}), boot = trim(fs.readfile('/proc/sys/kernel/random/boot_id'));
+    let current = { selected_id: id, boot, reason: reason ?? (old.selected_id == id ? old.reason : 'external') ?? 'migrated' };
+    if (canonical(current) != canonical(old)) save(BASE + '/antigravity-selection.json', current);
+}
+function select_antigravity(nodes, id, reason) {
+    if (!id || !owns_ag(cursor())) return;
+    let position = index(map(nodes, n => n.id), id);
+    if (position < 0) die('antigravity_node_missing');
+    let tag = sprintf('antigravity-%d-out', position + 1);
+    api('/proxies/antigravity-out', 'PUT', { name: tag });
+    if (api('/proxies/antigravity-out').now != tag) die('selection_failed');
+    remember_antigravity(id, reason);
+}
+function restore_antigravity(state) {
+    if (!owns_ag(cursor()) || cursor().get('podkop', 'antigravity', 'proxy_config_type') != 'selector') return;
+    let saved = load(BASE + '/antigravity-selection.json'), boot = trim(fs.readfile('/proc/sys/kernel/random/boot_id'));
+    if (saved && saved.boot != boot && length(filter(state.nodes, n => n.id == saved.selected_id)))
+        select_antigravity(state.nodes, saved.selected_id, saved.reason);
+    else remember_antigravity(antigravity_selection(state.nodes));
+}
+function main_profiles(config) { return sections.main_profiles(config); }
 function managed_configuration(nodes) {
     let fresh = cursor('/etc/config', JOB + '/read-delta', '');
     return { connection_type: fresh.get('podkop', 'main', 'connection_type'),
@@ -442,6 +498,8 @@ function candidate_snapshot(state, nodes, selected, verified_at, skipped) {
     let fallback = filter(nodes, n => n.id == cfg('fallback_id', ''))[0]?.id ?? nodes[0]?.id;
     // Candidate planning never switches MAIN or verifies a recovery choice.
     let candidate = plan(state.nodes, nodes, selected, hash, fallback), signature = {};
+    candidate.antigravity_migration = owns_ag(ctx) && ctx.get('podkop', 'antigravity', 'proxy_config_type') == 'outbound';
+    if (candidate.antigravity_migration) candidate.runtime_changed = true;
     for (let n in nodes) signature[n.id] = { name: n.name, outbound: n.outbound };
     candidate.source_hash = hash(canonical(signature));
     let previous = expire_pending();
@@ -453,7 +511,25 @@ function candidate_snapshot(state, nodes, selected, verified_at, skipped) {
     candidate.before_selected = selected; candidate.skipped = skipped ?? [];
     return candidate;
 }
+function independent_uci(config) {
+    let value = config.get_all('podkop');
+    if (value.main) delete value.main.selector_proxy_links;
+    if (value.settings) delete value.settings.config_path;
+    if (owns_ag(config) && value.antigravity) {
+        for (let key in ['proxy_config_type', 'selector_proxy_links', 'outbound_json', 'subscription_node_id']) delete value.antigravity[key];
+    }
+    return canonical(value);
+}
+function native_generation() {
+    must(['/usr/libexec/podkop-tools/generate'], 'generation_failed');
+    must(['/usr/bin/sing-box', 'check', '-c', JOB + '/generated.json'], 'validation_failed');
+    let generated = load(JOB + '/generated.json');
+    sections.validate_tags(generated);
+    return generated;
+}
+function independent_snapshot(generated, config) { return sections.independent_snapshot(generated, owns_ag(config), filehash); }
 function validate_generated_routes(generated, nodes) {
+    sections.validate_tags(generated);
     let selectors = filter(generated.outbounds ?? [], o => o.tag == 'main-out');
     if (generated.route?.final != 'direct-out' || length(selectors) != 1 || selectors[0].type != 'selector' ||
         canonical(selectors[0].outbounds) != canonical(map(nodes, (n, i) => sprintf('main-%d-out', i + 1))) ||
@@ -462,14 +538,37 @@ function validate_generated_routes(generated, nodes) {
 function stage(candidate) {
     generation_requirements();
     candidate.staged_from = filehash('/etc/config/podkop');
+    let previous = state_seed();
+    candidate.antigravity_before_id = antigravity_selection(previous.nodes);
+    candidate.antigravity_selected_id = candidate.antigravity_before_id;
+    let saved = load(BASE + '/antigravity-selection.json', {});
+    candidate.antigravity_reason = saved.selected_id == candidate.antigravity_before_id ? saved.reason : 'external';
+    if (candidate.antigravity_selected_id && !length(filter(candidate.nodes, n => n.id == candidate.antigravity_selected_id))) {
+        let main = candidate.before_selected ?? previous.selected_id;
+        candidate.antigravity_selected_id = filter(candidate.nodes, n => n.id == main)[0]?.id ?? candidate.nodes[0]?.id;
+        candidate.antigravity_reason = 'node_removed';
+    }
+    if (owns_ag(cursor()) && cursor().get('podkop', 'antigravity', 'proxy_config_type') == 'outbound') {
+        candidate.runtime_changed = true;
+        if (candidate.antigravity_reason != 'node_removed') candidate.antigravity_reason = 'migrated';
+    }
+
     must(['/bin/cp', '/etc/config/podkop', JOB + '/uci/podkop'], 'staging_failed');
     let staged = cursor(JOB + '/uci', JOB + '/delta', '');
-    sync_antigravity(staged, candidate.nodes);
+    let independent = independent_uci(staged);
+    // Generate the current native UCI first, so valid new independent settings
+    // are accepted even before their next native reload.
+    staged.set('podkop', 'settings', 'config_path', JOB + '/generated.json'); staged.commit('podkop');
+    let baseline = independent_snapshot(native_generation(), staged);
+    sync_antigravity(staged, candidate.nodes, candidate.antigravity_selected_id);
     if (!staged.set('podkop', 'main', 'selector_proxy_links', map(candidate.nodes, proxy_uri)) ||
         !staged.set('podkop', 'settings', 'config_path', JOB + '/generated.json') || !staged.commit('podkop')) die('staging_failed');
     must(['/usr/libexec/podkop-tools/generate'], 'generation_failed');
     must(['/usr/bin/sing-box', 'check', '-c', JOB + '/generated.json'], 'validation_failed');
     let generated = load(JOB + '/generated.json');
+    if (independent_uci(staged) != independent) die('routing_changed');
+    sections.assert_preserved(baseline, independent_snapshot(generated, staged));
+    candidate.independent_snapshot = independent_snapshot(generated, staged);
     validate_generated_routes(generated, candidate.nodes);
     verify_antigravity(staged, candidate.nodes, generated, 'generated_nodes_mismatch');
     let actual = main_profiles(generated);
@@ -497,6 +596,9 @@ function accept_snapshot(state, nodes, selected, verified_at, skipped) {
 }
 function selection_state(state, boot) {
     let actual = actual_selection(state), old = load(BASE + '/selection.json', {});
+    // Health may run before the finite boot job; never replace an old-boot
+    // saved ID with the selector's cold-cache default before restoring it.
+    restore_antigravity(state);
     if (old.intent?.profile && old.intent.profile != hash(canonical(filter(state.nodes,n=>n.id==old.intent.to)[0]?.outbound))) delete old.intent;
     let current = selection_event(old, actual, time(), boot);
     if (!old.preferred_id) {
@@ -508,6 +610,12 @@ function selection_state(state, boot) {
         }
     }
     if (canonical(current) != canonical(old)) save(BASE + '/selection.json', current);
+    // Adopt only a validated runtime choice. Keep the signed snapshot in sync
+    // before health revalidates it; legacy migration remains a separate task.
+    if (state.schema_version == 2 && state.selected_id != actual) {
+        state.selected_id = actual;
+        save_state(BASE + '/state.json', state);
+    }
     return current;
 }
 function record_history(id, ok, delay, reason) {
@@ -547,9 +655,10 @@ function rollback() {
     if (tx) {
         if (filehash(backup + '/state.json') != tx.backup_state ||
             (live != tx.after_managed && live != tx.before_managed) ||
-            (filehash(BASE + '/state.json') != tx.before_state && filehash(BASE + '/state.json') != tx.after_state)) die('recovery_conflict');
+            (filehash(BASE + '/state.json') != tx.before_state && filehash(BASE + '/state.json') != tx.after_state &&
+             filehash(BASE + '/state.json') != tx.rollback_state && filehash(BASE + '/state.json') != tx.rollback_previous_state)) die('recovery_conflict');
         let ag = antigravity_signature(cursor());
-        if (ag != (tx.antigravity_before ?? null) && ag != (tx.antigravity_after ?? null)) die('recovery_conflict');
+        if (ag != (tx.antigravity_before ?? null) && ag != (tx.antigravity_after ?? null) && ag != tx.antigravity_rollback) die('recovery_conflict');
     } else {
         if (live != current.managed_hash) die('state_conflict');
         actual_selection(current);
@@ -558,12 +667,18 @@ function rollback() {
     let expected = filehash('/etc/config/podkop');
     must(['/bin/cp', '/etc/config/podkop', JOB + '/uci/podkop'], 'staging_failed');
     let staged = cursor(JOB + '/uci', JOB + '/delta', '');
-    sync_antigravity(staged, old.nodes);
+    let independent = independent_uci(staged);
+    let ag = load(backup + '/antigravity-selection.json');
+    let ag_id = owns_ag(staged) ? (ag?.selected_id ?? staged.get('podkop', 'antigravity', 'subscription_node_id')) : null;
+    if (owns_ag(staged) && !length(filter(old.nodes, n => n.id == ag_id))) die('recovery_conflict');
+    sync_antigravity(staged, old.nodes, ag_id);
     staged.set('podkop', 'main', 'selector_proxy_links', map(old.nodes, proxy_uri));
     staged.set('podkop', 'settings', 'config_path', JOB + '/generated.json'); staged.commit('podkop');
     must(['/usr/libexec/podkop-tools/generate'], 'generation_failed');
     must(['/usr/bin/sing-box', 'check', '-c', JOB + '/generated.json'], 'validation_failed');
     let rollback_generated = load(JOB + '/generated.json');
+    if (independent_uci(staged) != independent) die('routing_changed');
+    let rollback_independent = independent_snapshot(rollback_generated, staged);
     validate_generated_routes(rollback_generated, old.nodes);
     verify_antigravity(staged, old.nodes, rollback_generated, 'generated_nodes_mismatch');
     let rollback_profiles = main_profiles(rollback_generated);
@@ -573,15 +688,23 @@ function rollback() {
         if (canonical(rollback_profiles[i]) != canonical(expected_node)) die('generated_nodes_mismatch');
     }
     staged.set('podkop', 'settings', 'config_path', '/etc/sing-box/config.json'); staged.commit('podkop');
+    if (tx) { tx.antigravity_rollback = antigravity_signature(staged); save(BASE + '/transaction.json', tx); }
     write_main(JOB + '/uci/podkop', expected);
     runtime_cache = null;
     must(['/usr/bin/timeout', '-s', 'TERM', '120', '/etc/init.d/podkop', 'reload'], 'rollback_failed');
     for (let i = 0; i < 30; i++) {
         try {
             old.podkop_hash = filehash('/etc/config/podkop');
+            if (tx) {
+                tx.rollback_previous_state = filehash(BASE + '/state.json');
+                seal_state(old); tx.rollback_state = hash(sprintf('%J', old));
+                save(BASE + '/transaction.json', tx);
+            }
+            if (owns_ag(staged)) select_antigravity(old.nodes, ag_id, ag?.reason ?? 'rolled_back');
             select_node(old, old.selected_id, 'rolled_back');
             if (actual_selection(old) != old.selected_id ||
                 run(['/usr/bin/dig', '+short', '+time=3', '+tries=1', '@127.0.0.42', 'openwrt.org', 'A']).out == '') die('rollback_failed');
+            sections.assert_preserved(rollback_independent, independent_snapshot(runtime(), cursor()));
             return;
         } catch (e) { run(['/bin/sleep', '2']); }
     }
@@ -592,18 +715,23 @@ function apply_candidate(candidate, urgent, selection_reason) {
     let accepted_from = filehash(BASE + '/state.json');
     let state = state_seed(), selected = actual_selection(state);
     if (selected != candidate.before_selected) die('selection_changed');
+    restore_antigravity(state);
     stage(candidate);
     if (filehash('/etc/config/podkop') != candidate.staged_from) die('uci_changed');
     if (actual_selection(state) != selected) die('state_conflict');
+    if (antigravity_selection(state.nodes) != candidate.antigravity_before_id) die('selection_changed');
     let chosen = filter(candidate.nodes, n => n.id == candidate.selected_id)[0];
     if (!chosen || !health(chosen)) die('selected_endpoint_unreachable');
     if (actual_selection(state) != selected) die('selection_changed');
+    if (antigravity_selection(state.nodes) != candidate.antigravity_before_id) die('selection_changed');
     if (filehash(BASE + '/state.json') != accepted_from) die('state_conflict');
     must(['/bin/mkdir', '-p', BASE + '/rollback'], 'backup_failed');
     for (let file in ['podkop', 'dhcp', 'sing-box']) must(['/bin/cp', '/etc/config/' + file, BASE + '/rollback/' + file], 'backup_failed');
     state.selected_id = selected; save_state(BASE + '/rollback/state.json', state);
+    remember_antigravity(candidate.antigravity_before_id);
+    save(BASE + '/rollback/antigravity-selection.json', candidate.antigravity_before_id ? load(BASE + '/antigravity-selection.json') : null);
     let checksums = '';
-    for (let file in ['podkop', 'dhcp', 'sing-box', 'state.json']) checksums += filehash(BASE + '/rollback/' + file) + '  ' + BASE + '/rollback/' + file + '\n';
+    for (let file in ['podkop', 'dhcp', 'sing-box', 'state.json', 'antigravity-selection.json']) checksums += filehash(BASE + '/rollback/' + file) + '  ' + BASE + '/rollback/' + file + '\n';
     fs.writefile(BASE + '/rollback/SHA256SUMS', checksums); fs.chmod(BASE + '/rollback/SHA256SUMS', 0600);
     // A durable marker makes the next boot/task restore an interrupted apply.
     let transaction = { schema_version: 2, started: time(), before_state: filehash(BASE + '/state.json'), before_managed: state.managed_hash, after_managed: hash(canonical(managed_configuration(candidate.nodes))), before_main: candidate.staged_from, after_main: filehash(JOB + '/uci/podkop') };
@@ -632,10 +760,12 @@ function apply_candidate(candidate, urgent, selection_reason) {
         seal_state(state);
         transaction.after_state = hash(sprintf('%J', state)); save(BASE + '/transaction.json', transaction);
         save(BASE + '/state.json', state);
+        select_antigravity(state.nodes, candidate.antigravity_selected_id, candidate.antigravity_reason);
         select_node(state, candidate.selected_id, selection_reason ?? (urgent ? 'recovered' : 'applied'));
         let live = runtime(), generated = load(JOB + '/generated.json');
         if (canonical(filter(live.outbounds, o => o.type == 'vless')) != canonical(filter(generated.outbounds, o => o.type == 'vless'))) die('apply_failed');
         actual_selection(state);
+        sections.assert_preserved(candidate.independent_snapshot, independent_snapshot(live, cursor()));
         // Actual DNS service check; does not treat site HTTP200 as application success.
         if (run(['/usr/bin/dig', '+short', '+time=3', '+tries=1', '@127.0.0.42', 'openwrt.org', 'A']).out == '') die('dns_failed');
         if (!health(chosen)) die('selected_endpoint_unreachable');
@@ -750,7 +880,6 @@ function policy_config() {
         improvement_percent: number('improvement_percent',20,0,100), improvement_ms: number('improvement_ms',50,0,60000),
         cooldown_seconds: number('cooldown_seconds',600,0,86400) };
 }
-function priorities() { let p=ctx.get('podkop_tools','main','priority_ids') ?? []; return type(p)=='array'?p:[p]; }
 function delay_probe(state,node) {
     let position=index(map(state.nodes,n=>n.id),node.id);
     if(position<0) return null;
@@ -873,7 +1002,7 @@ function recover_active(state,selected) {
 }
 function check_active() {
     expire_pending();
-    let state=state_seed(), meta=selection_state(state), selected=actual_selection(state);
+    let state=state_seed(), meta=selection_state(state), selected=meta.selected_id;
     let config=policy_config(), now=time(), tick_mono=monotime(), boot=trim(fs.readfile('/proc/sys/kernel/random/boot_id'));
     state.selected_id=selected;
     let health_state=load(TMP+'/health-v2.json',{boot,records:{},cursor:0});
@@ -1181,6 +1310,15 @@ function public_status() {
         let chosen = (state.nodes ?? [])[index(group.all, group.now)]?.id;
         if (chosen) status.selected_id = chosen;
     } catch (e) { status.runtime_available = false; }
+    delete status.antigravity;
+    if (owns_ag(ctx)) {
+        let saved = load(BASE + '/antigravity-selection.json', {});
+        try {
+            let selected = antigravity_selection(state.nodes ?? []);
+            status.antigravity = { selected_id: selected, mode: ctx.get('podkop', 'antigravity', 'proxy_config_type'),
+                reason: saved.selected_id == selected ? saved.reason : 'external' };
+        } catch (e) { status.antigravity = { mode: ctx.get('podkop', 'antigravity', 'proxy_config_type'), unavailable: true }; }
+    }
     if (status.control && status.control.selected_id != status.selected_id) status.control = null;
     let service_configuration_hash = length(filter(state.nodes ?? [], n => tests[n.id]?.service != null)) ? filehash('/etc/config/podkop') : null;
     status.nodes = map(state.nodes ?? [], n => {

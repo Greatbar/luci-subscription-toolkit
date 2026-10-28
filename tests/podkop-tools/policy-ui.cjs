@@ -28,6 +28,10 @@ function harness() {
   assert.ok(text(tree).includes('Предпочтительный сервер:'));
   assert.ok(text(tree).includes('Нет ответа активного сервера'));
   assert.ok(text(tree).includes('Проверка резервов'));
+  h.state.antigravity = { mode: 'selector', selected_id: h.b, reason: 'node_removed' };
+  v.redraw(h.state);
+  assert.ok(text(tree).replace(/\s+/g, ' ').includes('Antigravity: <script>bad</script>'));
+  assert.ok(text(tree).includes('Сервер удалён из подписки'));
   const probeHarness = harness(), probeView = probeHarness.load('dashboard');
   probeHarness.state.control = {ok: null, at: 1700000000, failures: 0};
   assert.ok(text(probeView.render(await probeView.load())).includes('Неизвестно'));

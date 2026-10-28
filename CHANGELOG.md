@@ -2,6 +2,15 @@
 
 ## 0.3.0 — development
 
+- Integrate explicitly owned AG Selector with stable independent choices, native
+  dashboard selection, apply/recovery synchronization and durable rollback retry.
+- Preserve arbitrary independent native sections without a name/type allowlist;
+  validate native baseline/candidate projections, tags, routes and member references.
+- Preserve current independent UCI edits on rollback; never adopt a same-name
+  unmarked AG section. Personal service routing remains native user configuration.
+- Adopt validated manual MAIN selections before health; declare fallback helpers
+  before use. Retry deferred apply every five minutes inside its configured hour.
+
 - Replace implementation hash and exact-version allowlisting with independent
   operation prerequisites; unknown versions are diagnostic warnings.
 - Preserve successful private downloads when Selector/native staging is unavailable;

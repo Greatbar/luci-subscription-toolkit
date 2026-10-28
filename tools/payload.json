@@ -3,7 +3,7 @@
     "source": "htdocs/luci-static/resources/view/podkop-tools/dashboard.js",
     "target": "www/luci-static/resources/view/podkop-tools/dashboard.js",
     "mode": 420,
-    "sha256": "d942bad822cd7b01696bb7f34e84b0f877ff78c60e1d994000eaa0295d7be85f"
+    "sha256": "843439fcb8817fd5f1bedd04866b9fba22f6e7feb052b0f033b79c99f9bee686"
   },
   {
     "source": "htdocs/luci-static/resources/view/podkop-tools/settings.js",
@@ -27,7 +27,7 @@
     "source": "root/etc/init.d/podkop-tools",
     "target": "etc/init.d/podkop-tools",
     "mode": 493,
-    "sha256": "154038aa5bb0198e945af2ffd9d95110498f52cfd880d6f79f5dafcd402da0b1"
+    "sha256": "e20658d711078de1a456e191f081ce7f6178345c6aac25c44f6fa1d2868a2d81"
   },
   {
     "source": "root/lib/upgrade/keep.d/podkop-tools",
@@ -39,7 +39,7 @@
     "source": "root/usr/libexec/podkop-tools/backend.uc",
     "target": "usr/libexec/podkop-tools/backend.uc",
     "mode": 420,
-    "sha256": "20e85781a898c5924127290b5b50f2e82ce7b6f911310c132f995ff08008b1cb"
+    "sha256": "c311405cd170bc1af7acd6f182be3ac8ebf951393352515325f41b657dd0249d"
   },
   {
     "source": "root/usr/libexec/podkop-tools/boot",
@@ -51,7 +51,7 @@
     "source": "root/usr/libexec/podkop-tools/generate",
     "target": "usr/libexec/podkop-tools/generate",
     "mode": 493,
-    "sha256": "666ba629879da5cd0f5a66326b2ee475f962d24c1eed1dee519dcc50a038ff52"
+    "sha256": "8435186803499427289aa76d959d88659515a378873aed777e3dbaa9246510d1"
   },
   {
     "source": "root/usr/libexec/podkop-tools/model.uc",
@@ -136,5 +136,11 @@
     "target": "usr/libexec/podkop-tools/compatibility.uc",
     "mode": 420,
     "sha256": "2148fc3afea295d683e373ad84eb1f7cb75e3db4f287204acf1590bd7dff4edf"
+  },
+  {
+    "source": "root/usr/libexec/podkop-tools/sections.uc",
+    "target": "usr/libexec/podkop-tools/sections.uc",
+    "mode": 420,
+    "sha256": "62c9bc2dd07fe60eb38319e3cb66bec3e55f385bbac3a4d589dc2fbc69533870"
   }
 ]

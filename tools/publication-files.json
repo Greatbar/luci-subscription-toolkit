@@ -77,5 +77,10 @@
   "tests/podkop-tools/compatibility.uc",
   "tests/podkop-tools/generator.py",
   "tests/podkop-tools/compat-integration.py",
-  "docs/superpowers/plans/2026-10-28-compat-v0.3.md"
+  "docs/superpowers/plans/2026-10-28-compat-v0.3.md",
+  "root/usr/libexec/podkop-tools/sections.uc",
+  "tests/podkop-tools/sections.uc",
+  "tests/podkop-tools/sections_integration.py",
+  "docs/superpowers/plans/2026-10-28-v0.3-integration.md",
+  "tests/podkop-tools/ag_contract.uc"
 ]

@@ -20,7 +20,7 @@ function policyLabel(value) {
     return ({manual:'Выбор пользователя', selected:'Выбор пользователя', external:'Выбор в Podkop', migrated:'Принят при обновлении',
         active_unavailable:'Нет ответа активного сервера', boot_adopted_unknown:'Принят при загрузке', outage:'Восстановление после отказа', failback:'Возврат на основной',
         profile_update:'Обновление адреса сервера', latency:'Высокая задержка', applied:'Применение подписки', recovered:'Обновление профиля', rolled_back:'Откат',
-        confirm:'Подтверждение отказа', fetch:'Обновление подписки', same:'Проверка нового адреса', reserves:'Проверка резервов'})[value] || '—';
+        confirm:'Подтверждение отказа', fetch:'Обновление подписки', same:'Проверка нового адреса', reserves:'Проверка резервов', node_removed:'Сервер удалён из подписки'})[value] || '—';
 }
 const capabilityNames = { fetch: 'Загрузка подписки', monitoring: 'Мониторинг', selector: 'Selector',
     switch: 'Переключение', apply: 'Применение', rollback: 'Откат', recovery: 'Восстановление', measurement: 'Измерения' };
@@ -345,7 +345,10 @@ return view.extend({
                     E('span', {}, [E('strong', {}, 'Серверов: '), String(nodes.length)]),
                     E('span', {}, [E('strong', {}, 'Подписка: '), timestamp(s.last_success)]),
                     E('span', {}, [E('strong', {}, 'Обновления: '), s.pending ? 'ожидают применения' : 'нет']),
-                    E('span', {}, [E('strong', {}, 'Автоматизация: '), s.enabled ? 'включена' : 'выключена'])
+                    E('span', {}, [E('strong', {}, 'Автоматизация: '), s.enabled ? 'включена' : 'выключена']),
+                    ...(s.antigravity ? [E('span', {}, [E('strong', {}, 'Antigravity: '),
+                        (nodes.find(n => n.id === s.antigravity.selected_id) || {}).name || '—',
+                        ' · ' + policyLabel(s.antigravity.reason)])] : [])
                 ]),
                 E('div', { 'class': 'stk-buttons' }, [button('Обновить список', () => this.refresh().catch(() => this.notify('Не удалось обновить список')), this.running || this.localBusy),
                     button('Проверить подписку', () => this.operation('fetch'), unavailable('fetch'))

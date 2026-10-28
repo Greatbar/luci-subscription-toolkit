@@ -871,5 +871,119 @@
     "kind": "url",
     "value_sha256": "4ae480b4f2864f7bc24615d1adc1794657ab3f5b5535246152ed5d215bcb1596",
     "reason": "reviewed public upstream Podkop/sing-box legacy compatibility test archive URL; hash pinned, not a runtime gate"
+  },
+  {
+    "file": "tests/podkop-tools/ag_contract.uc",
+    "kind": "uuid",
+    "value_sha256": "11e594f481958c10e3015d0bf0447a22f068a8a647f475df15ce2c7ab4b8f3f1",
+    "reason": "reviewed generic fixture only: reserved .example/loopback, fixed container mount or synthetic UUID; no personal router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/ag_contract.uc",
+    "kind": "credential_literal",
+    "value_sha256": "342a52f47ec7b6a5ca035a6f75650e067c10b36b11e815772b2e3f64950927d0",
+    "reason": "reviewed generic fixture only: reserved .example/loopback, fixed container mount or synthetic UUID; no personal router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/ag_contract.uc",
+    "kind": "credential_assignment",
+    "value_sha256": "342a52f47ec7b6a5ca035a6f75650e067c10b36b11e815772b2e3f64950927d0",
+    "reason": "reviewed generic fixture only: reserved .example/loopback, fixed container mount or synthetic UUID; no personal router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/ag_contract.uc",
+    "kind": "hostname_literal",
+    "value_sha256": "4ab192cbf22101e177dedbe133993d07e2fd21d7fa944be5363637f48f7da458",
+    "reason": "reviewed generic fixture only: reserved .example/loopback, fixed container mount or synthetic UUID; no personal router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/compat-integration.py",
+    "kind": "private_path",
+    "value_sha256": "a802380dd4464c057200db1161520c65d8371e40213ae67568bcc6231d67f8ad",
+    "reason": "reviewed generic fixture only: reserved .example/loopback, fixed container mount or synthetic UUID; no personal router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/sections.uc",
+    "kind": "hostname_literal",
+    "value_sha256": "4ab192cbf22101e177dedbe133993d07e2fd21d7fa944be5363637f48f7da458",
+    "reason": "reviewed generic fixture only: reserved .example/loopback, fixed container mount or synthetic UUID; no personal router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/sections.uc",
+    "kind": "hostname_literal",
+    "value_sha256": "0cdcff74a7de29a8c19eac9e72fbc77b18e5d3fa6bfe8b3569c87b6d57edecdb",
+    "reason": "reviewed generic fixture only: reserved .example/loopback, fixed container mount or synthetic UUID; no personal router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/sections.uc",
+    "kind": "ipv4",
+    "value_sha256": "12ca17b49af2289436f303e0166030a21e525d266e209267433801a8fd4071a0",
+    "reason": "reviewed generic fixture only: reserved .example/loopback, fixed container mount or synthetic UUID; no personal router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/sections.uc",
+    "kind": "hostname_literal",
+    "value_sha256": "b8fdd7e52915fb9cf55a8f04a92e2d9816039c222000e411e16f07aaaef36f91",
+    "reason": "reviewed generic fixture only: reserved .example/loopback, fixed container mount or synthetic UUID; no personal router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/sections.uc",
+    "kind": "hostname_literal",
+    "value_sha256": "02c816521c0814537aa4fb9fadda426c83b24c42b834e1fc59686b43078abb91",
+    "reason": "reviewed generic fixture only: reserved .example/loopback, fixed container mount or synthetic UUID; no personal router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/sections.uc",
+    "kind": "ipv4",
+    "value_sha256": "1edd62868f2767a1fff68df0a4cb3c23448e45100715768db9310b5e719536a1",
+    "reason": "reviewed generic fixture only: reserved .example/loopback, fixed container mount or synthetic UUID; no personal router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/sections.uc",
+    "kind": "hostname_literal",
+    "value_sha256": "13f41a55583e72f22bf7d7092c573fb29ac7d3b0b593ba307d018291d3ec896d",
+    "reason": "reviewed generic fixture only: reserved .example/loopback, fixed container mount or synthetic UUID; no personal router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/sections_integration.py",
+    "kind": "hostname_literal",
+    "value_sha256": "4925b7d853f346feb510bb2f79625c2af7fc6b48732364aea4d3cf5ce357d467",
+    "reason": "reviewed generic fixture only: reserved .example/loopback, fixed container mount or synthetic UUID; no personal router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/sections_integration.py",
+    "kind": "ipv4",
+    "value_sha256": "12ca17b49af2289436f303e0166030a21e525d266e209267433801a8fd4071a0",
+    "reason": "reviewed generic fixture only: reserved .example/loopback, fixed container mount or synthetic UUID; no personal router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/sections_integration.py",
+    "kind": "hostname_literal",
+    "value_sha256": "b2476967588bc612f7455a06588951ef3e38c5dfbdd554b71d08b76840686e6a",
+    "reason": "reviewed generic fixture only: reserved .example/loopback, fixed container mount or synthetic UUID; no personal router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/sections_integration.py",
+    "kind": "hostname_literal",
+    "value_sha256": "e9efb21f740e487f529b449bb1197c40f36e443fabfd8f0014a0e5ec51a8c58c",
+    "reason": "reviewed generic fixture only: reserved .example/loopback, fixed container mount or synthetic UUID; no personal router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/sections_integration.py",
+    "kind": "hostname_literal",
+    "value_sha256": "288f53ae529cf17a97de30bd1e227ca19155b2478f60f2d8601727a0d31c684e",
+    "reason": "reviewed generic fixture only: reserved .example/loopback, fixed container mount or synthetic UUID; no personal router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/sections_integration.py",
+    "kind": "hostname_literal",
+    "value_sha256": "1f30273176bf43428242811a3bd5e04653804cff849e2ac73a14aa6e00c66a48",
+    "reason": "reviewed generic fixture only: reserved .example/loopback, fixed container mount or synthetic UUID; no personal router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/sections_integration.py",
+    "kind": "hostname_literal",
+    "value_sha256": "08dd437c1b0a2aad5d138e683b3790d7a89814e589ac3e3f6edeb758c77ec5b5",
+    "reason": "reviewed generic fixture only: reserved .example/loopback, fixed container mount or synthetic UUID; no personal router configuration"
   }
 ]

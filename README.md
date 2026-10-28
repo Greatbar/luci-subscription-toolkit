@@ -55,6 +55,27 @@ and compatible VLESS outbounds: TCP/gRPC with TLS/Reality (synthetic tests also
 use security=none). URI/base64 lists, XHTTP and arbitrary provider formats are not
 supported. Provider inbounds, DNS and routing are never imported.
 
+## Managed and independent sections
+
+Toolkit owns MAIN's subscription profiles. An optional `antigravity` section is
+managed only when explicitly bound with a nonempty `subscription_node_id`.
+An unmarked section with the same name is independent. Native Proxy, VPN,
+Exclusion and Block sections are not rejected by name or connection type.
+
+A bound legacy AG outbound migrates to a full native Selector on approved/deferred
+apply. MAIN and AG share the subscription list but retain independent choices by
+stable ID. Apply, recovery and rollback preserve the choice; removal falls back
+to retained MAIN or the first candidate, with an explicit status reason. Cold
+restore uses the last observed AG choice; background observation needs enabled
+automation or a maintenance operation.
+
+User domains, ports and independent resolver settings are retained from current
+UCI, including edits made after apply when rolling back. Native baseline/candidate
+generation compares independent routes/DNS/local rulesets before live writes.
+Duplicate tags, changed independent profiles or changed targets of direct member
+references block mutation; references to stable MAIN/AG groups are supported.
+Specialized personal routing/resolvers remain normal Podkop configuration.
+
 ## Build from public sources
 
 Requirements: Linux x86_64, Python ≥3.12, Node.js ≥20 and fakeroot; Python <3.14

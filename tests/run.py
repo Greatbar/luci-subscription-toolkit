@@ -33,8 +33,11 @@ def main():
         else:raise RuntimeError('OpenWrt procd/ubus did not start')
         spec=importlib.util.spec_from_file_location('integration',ROOT/'tests/podkop-tools/integration.py');lab=importlib.util.module_from_spec(spec);sys.modules['integration']=lab;spec.loader.exec_module(lab)
         lab.LAB.mkdir(parents=True,exist_ok=True);lab.setup_packages()
-        for name in ('model','service','policy','statistics','compatibility'):
+        for name in ('model','service','policy','statistics','compatibility','sections'):
             lab.cp(ROOT/f'tests/podkop-tools/{name}.uc','/tmp/'+name+'.uc');exec_('ucode','/tmp/'+name+'.uc')
+        prefix=(ROOT/'root/usr/libexec/podkop-tools/backend.uc').read_text().split('let command = ARGV')[0]
+        lab.write('/tmp/ag-contract.uc',prefix+(ROOT/'tests/podkop-tools/ag_contract.uc').read_text())
+        exec_('ucode','/tmp/ag-contract.uc')
         for name in ('provider.json','outbounds.json'):
             lab.cp(ROOT/'tests/fixtures'/name,'/tmp/'+name)
         lab.cp(ROOT/'tests/podkop-tools/provider.uc','/tmp/provider.uc')
