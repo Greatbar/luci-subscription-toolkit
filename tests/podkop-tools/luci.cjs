@@ -85,6 +85,66 @@ function env(write=true) {
   assert.equal(cancel.requests.filter(r=>r.method==='cancel').length,1);
   assert.equal(cancel.requests.filter(r=>r.method==='batch').length,1);
   assert.ok(cv.progress.message.includes('остановлена'));
+  // Compatibility is per operation: an unknown version or unavailable generator
+  // must not disable subscription fetch, Selector switching or measurements.
+  const compatibility=env(), compatibilityView=compatibility.load('dashboard');
+  compatibility.state.compatible=false;
+  compatibility.state.compatibility={versions:{openwrt:'25.12.2',podkop:'0.7.14',sing_box:'1.12.17'},warnings:['untested_versions'],capabilities:{
+    fetch:{available:true},monitoring:{available:true},selector:{available:true},switch:{available:true},
+    apply:{available:false,reason:'generator_unavailable'},rollback:{available:false,reason:'rollback_unavailable'},
+    recovery:{available:false,reason:'generator_unavailable'},measurement:{available:true}}};
+  const compatibilityTree=compatibilityView.render(await compatibilityView.load());
+  assert.ok(text(compatibilityTree).includes('Эта связка версий не проверена'));
+  assert.ok(text(compatibilityTree).includes('0.7.14'));
+  assert.ok(text(compatibilityTree).includes('Нет подходящего генератора Podkop'));
+  assert.equal(button(compatibilityTree,'Проверить подписку').disabled,false);
+  assert.equal(button(compatibilityTree,'Прочитать текущий MAIN').disabled,false);
+  assert.equal(button(compatibilityTree,'Применить изменения').disabled,true);
+  assert.equal(button(compatibilityTree,'Запустить проверку').disabled,false);
+  await button(compatibilityTree,'Проверить подписку').attrs.click();
+  assert.ok(compatibility.requests.some(r=>r.method==='fetch'));
+  const applyCount=compatibility.requests.filter(r=>r.method==='apply').length;
+  await compatibilityView.operation('apply','c'.repeat(64));
+  assert.equal(compatibility.requests.filter(r=>r.method==='apply').length,applyCount);
+  await compatibilityView.runTests(compatibility.state.nodes.map(n=>n.id),['latency']);
+  assert.ok(compatibility.requests.some(r=>r.method==='batch'));
+  compatibility.state.compatibility.capabilities.switch={available:false,reason:'api_unavailable'};
+  compatibility.state.compatibility.capabilities.measurement={available:false,reason:'sing_box_unavailable'};
+  await compatibility.polls[0]();
+  assert.ok(walk(compatibilityTree).filter(n=>n.tag==='button'&&text(n)==='Выбрать').every(n=>n.disabled));
+  assert.equal(button(compatibilityTree,'Запустить проверку').disabled,true);
+  assert.equal(button(compatibilityTree,'Проверить подписку').disabled,false);
+  const batchesBefore=compatibility.requests.filter(r=>r.method==='batch').length;
+  await compatibilityView.startTests(compatibility.state.nodes.map(n=>n.id),['latency']);
+  await compatibilityView.runTests(compatibility.state.nodes.map(n=>n.id),['latency']);
+  assert.equal(compatibility.requests.filter(r=>r.method==='batch').length,batchesBefore);
+  const selectsBefore=compatibility.requests.filter(r=>r.method==='select').length;
+  await compatibilityView.operation('select',compatibility.state.nodes[1].id);
+  assert.equal(compatibility.requests.filter(r=>r.method==='select').length,selectsBefore);
+  compatibility.state.downloaded_count=3;
+  compatibility.state.fetch_path='system';
+  const stageReasons={validation_failed:'sing-box отклонил подготовленную конфигурацию',
+    generation_failed:'Не удалось подготовить конфигурацию Podkop',
+    generated_nodes_mismatch:'Генератор изменил список серверов',routing_changed:'Подготовленная конфигурация меняет защищённые маршруты',
+    state_conflict:'Состояние Toolkit расходится с конфигурацией Podkop',operation_failed:'Не удалось выполнить операцию'};
+  for (const [reason,label] of Object.entries(stageReasons)) {
+    compatibility.state.fetch_stage_error=reason;
+    await compatibility.polls[0]();
+    assert.ok(text(compatibilityTree).includes('Подписка загружена: 3 серверов'));
+    assert.ok(text(compatibilityTree).includes('Подготовка применения: '+label));
+    assert.equal(button(compatibilityTree,'Проверить подписку').disabled,false);
+  }
+  assert.ok(text(compatibilityTree).includes('Путь загрузки: Системное подключение'));
+  compatibility.state.fetch_path='direct';
+  await compatibility.polls[0]();
+  assert.ok(text(compatibilityTree).includes('Путь загрузки: Изолированное прямое подключение'));
+  compatibility.state.fetch_path='saved_server';
+  await compatibility.polls[0]();
+  assert.ok(text(compatibilityTree).includes('Путь загрузки: Сохранённый сервер подписки'));
+  compatibility.state.compatibility.versions.podkop='<img src=x onerror=alert(1)>';
+  await compatibility.polls[0]();
+  assert.ok(text(compatibilityTree).includes('<img src=x onerror=alert(1)>'));
+  assert.ok(!JSON.stringify(compatibilityTree).includes('innerHTML'));
   const settings=h.load('settings');settings.render(await settings.load());
   const url=h.options.find(o=>o.name==='subscription_url');assert.equal(url.password,true);assert.equal(url.cfgvalue(),'');await url.write('main','https://provider.invalid/sub?token=TEST');assert.deepEqual(h.requests.at(-1),{method:'source',args:['https://provider.invalid/sub?token=TEST']});assert.equal(url.validate('', 'https://provider.invalid/sub?token=PRIVATE'),true);assert.notEqual(url.validate('','http://provider.invalid/sub'),true);
   assert.ok(!text(tree).includes('subscription_url'));assert.ok(h.options.some(o=>o.name==='apply_policy'&&o.values.some(v=>v[0]==='manual')));

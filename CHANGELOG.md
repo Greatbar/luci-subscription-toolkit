@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.0 — development
+
+- Replace implementation hash and exact-version allowlisting with independent
+  operation prerequisites; unknown versions are diagnostic warnings.
+- Preserve successful private downloads when Selector/native staging is unavailable;
+  report staging failures separately and invalidate older pending candidates.
+- Preflight the internal Podkop generator without executing its CLI. Share the
+  native generation contract across 0.7.14 and 0.7.22 without version branches.
+- Retain transaction/backup hashes, staged sing-box validation and ownership checks;
+  validate the old generated configuration before a rollback writes live UCI.
+- Display versions and per-operation diagnostics in LuCI; APK dependencies remain
+  unversioned for Podkop/sing-box.
+
 ## 0.2.0-r2 — 2026-10-18
 
 - Synchronize the public sources with the deployed v0.2 implementation, retaining

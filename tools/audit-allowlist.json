@@ -823,5 +823,53 @@
     "kind": "hostname_literal",
     "value_sha256": "afa39d738f954a29b7c7478c98b3cb61a664d4840a1a78f79678f7285c481878",
     "reason": "synthetic optional-route test value: reserved example IP, loopback or fixture hostname"
+  },
+  {
+    "file": "tests/podkop-tools/compat-integration.py",
+    "kind": "ipv4",
+    "value_sha256": "12ca17b49af2289436f303e0166030a21e525d266e209267433801a8fd4071a0",
+    "reason": "reviewed synthetic compatibility fixture: loopback endpoint or fixed in-container /work mount, no router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/compat-integration.py",
+    "kind": "private_path",
+    "value_sha256": "99cbd73528142286c61a821d23077e8553dca0bb141fbdf5a6a5cc8ecfe90c8b",
+    "reason": "reviewed synthetic compatibility fixture: loopback endpoint or fixed in-container /work mount, no router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/compat-integration.py",
+    "kind": "private_path",
+    "value_sha256": "c27a8df252fb435260e07f1ce5ec12fbaa915f19cd8e9f03a33d91b080ab1382",
+    "reason": "reviewed synthetic compatibility fixture: loopback endpoint or fixed in-container /work mount, no router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/compat-integration.py",
+    "kind": "url",
+    "value_sha256": "1feecb0989dc7ae80c7ef54ed23c4b4606b4af46459c5b0d1aa4f4ca3217cc51",
+    "reason": "reviewed synthetic compatibility fixture: loopback endpoint or fixed in-container /work mount, no router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/compat-integration.py",
+    "kind": "private_path",
+    "value_sha256": "97cf3e6c374473bf758de68b9c50777933c3b9ced0eb4ff142a4c0f5322bfe90",
+    "reason": "reviewed synthetic compatibility fixture: loopback endpoint or fixed in-container /work mount, no router configuration"
+  },
+  {
+    "file": "tests/podkop-tools/compat-integration.py",
+    "kind": "url",
+    "value_sha256": "b6f27cdcdf57af2399437b0b40c9a7f1cc45817e122a4cd87647af7adab8fd0b",
+    "reason": "reviewed synthetic compatibility fixture: loopback endpoint or fixed in-container /work mount, no router configuration"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "e4d656c22bf5e9091497a4c31acc5951f5737c19edb357511fa10488de05cf22",
+    "reason": "reviewed public upstream Podkop/sing-box legacy compatibility test archive URL; hash pinned, not a runtime gate"
+  },
+  {
+    "file": "tools/sources.lock.json",
+    "kind": "url",
+    "value_sha256": "4ae480b4f2864f7bc24615d1adc1794657ab3f5b5535246152ed5d215bcb1596",
+    "reason": "reviewed public upstream Podkop/sing-box legacy compatibility test archive URL; hash pinned, not a runtime gate"
   }
 ]

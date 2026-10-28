@@ -135,5 +135,19 @@
   },
   "browser_fixture": {
     "image": "mcr.microsoft.com/playwright@sha256:6446946a1d9fd62d9ae501312a2d76a43ee688542b21622056a372959b65d63d"
+  },
+  "compatibility_inputs": {
+    "podkop-legacy": {
+      "url": "https://codeload.github.com/itdoginfo/podkop/tar.gz/refs/tags/0.7.14",
+      "sha256": "ccc1dc0d4f65c3dbf759256783dbad58b2a7293fc25b0d812edbeb807de7d513",
+      "file": "compat-resources/podkop-0.7.14.tar.gz",
+      "directory": "podkop-0.7.14"
+    },
+    "sing-box-legacy": {
+      "url": "https://github.com/SagerNet/sing-box/releases/download/v1.12.17/sing-box-1.12.17-linux-amd64.tar.gz",
+      "sha256": "5c6cc2e753afb34a6f38802697c8040bdf6a7f3694ea67db861c1e093754f898",
+      "file": "compat-resources/sing-box-1.12.17-linux-amd64.tar.gz",
+      "directory": "sing-box-1.12.17-linux-amd64"
+    }
   }
 }

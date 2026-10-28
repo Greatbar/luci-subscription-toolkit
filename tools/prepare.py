@@ -41,7 +41,7 @@ def extract(path):
     else:
         with tarfile.open(path) as archive: archive.extractall(BUILD, filter='data')
 def main():
-    parser=argparse.ArgumentParser(); parser.add_argument('--lab', action='store_true'); parser.add_argument('--audit', action='store_true'); args=parser.parse_args()
+    parser=argparse.ArgumentParser(); parser.add_argument('--lab', action='store_true'); parser.add_argument('--audit', action='store_true'); parser.add_argument('--compat', action='store_true'); args=parser.parse_args()
     lock=json.loads((ROOT/'tools/sources.lock.json').read_text()); BUILD.mkdir(exist_ok=True)
     for key in ('imagebuilder','podkop','sing-box'):
         item=lock[key]; archive=fetch(item)
@@ -53,6 +53,20 @@ def main():
             extract(archive); stamp.write_text(item['sha256'])
         print('Verified public input:',key,flush=True)
     fetch(lock['sing-box-init'])
+    if args.compat:
+        for key, item in lock['compatibility_inputs'].items():
+            archive = fetch(item); directory = BUILD / item['directory']
+            stamp = directory / '.toolkit-extracted'
+            if not stamp.exists() or stamp.read_text() != item['sha256']:
+                if directory.exists(): shutil.rmtree(directory)
+                extract(archive); stamp.write_text(item['sha256'])
+            print('Verified compatibility input:', key, flush=True)
+        host = BUILD / 'openwrt-imagebuilder-25.12.5-x86-64.Linux-x86_64/staging_dir/host/bin'
+        native_apk = host / '.apk.bin'
+        if not native_apk.exists(): native_apk = host / 'apk'
+        destination = BUILD / 'compat-resources/apk'
+        destination.parent.mkdir(exist_ok=True)
+        shutil.copy2(native_apk, destination)
     if args.audit: extract(fetch(lock['gitleaks']))
     if args.lab:
         run('docker','pull',lock['python_fixture']['image'])

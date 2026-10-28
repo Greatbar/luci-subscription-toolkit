@@ -556,7 +556,7 @@ def main():
         record('disabled_cron_and_stale_job_are_inert','# podkop-tools' not in dex('crontab','-l').stdout and task('check').get('disabled'))
         command(['docker','cp',MAIN+':/usr/share/podkop-tools/compat.sha256',str(LAB/'compat.original')])
         write('/usr/share/podkop-tools/compat.sha256','0'*64+'  /usr/bin/podkop\n')
-        before=fingerprint();out=task('fetch',check=False);record('incompatible_update_fails_closed',not out['ok'] and fingerprint()==before and public()['compatible'] is False)
+        before=fingerprint();old_pid=pid();out=task('fetch',check=False);record('implementation_hash_does_not_gate_operations',out['ok'] and fingerprint()==before and pid()==old_pid and public()['compatibility']['capabilities']['fetch']['available'])
         cp(LAB/'compat.original','/usr/share/podkop-tools/compat.sha256')
         # Active removal requires a verified fallback; current choice stays until apply.
         state['profiles']=[p for p in state['profiles'] if p['remarks']!=selected_name]

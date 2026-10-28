@@ -14,6 +14,7 @@ def main():
     p=argparse.ArgumentParser();p.add_argument('suite',choices=['unit','antigravity','integration','recovery','rotation','ownership','readiness','browser','all']);a=p.parse_args()
     run('node',str(ROOT/'tests/podkop-tools/luci.cjs'))
     run('node',str(ROOT/'tests/podkop-tools/policy-ui.cjs'))
+    run('python3','-B',str(ROOT/'tests/podkop-tools/generator.py'))
     run('python3',str(ROOT/'tests/test_audit.py'))
     run('python3','-B',str(ROOT/'tests/test_security.py'))
     run('python3','-B',str(ROOT/'tests/podkop-tools/scheduler.py'))
@@ -32,7 +33,7 @@ def main():
         else:raise RuntimeError('OpenWrt procd/ubus did not start')
         spec=importlib.util.spec_from_file_location('integration',ROOT/'tests/podkop-tools/integration.py');lab=importlib.util.module_from_spec(spec);sys.modules['integration']=lab;spec.loader.exec_module(lab)
         lab.LAB.mkdir(parents=True,exist_ok=True);lab.setup_packages()
-        for name in ('model','service','policy','statistics'):
+        for name in ('model','service','policy','statistics','compatibility'):
             lab.cp(ROOT/f'tests/podkop-tools/{name}.uc','/tmp/'+name+'.uc');exec_('ucode','/tmp/'+name+'.uc')
         for name in ('provider.json','outbounds.json'):
             lab.cp(ROOT/'tests/fixtures'/name,'/tmp/'+name)

@@ -22,6 +22,22 @@ function policyLabel(value) {
         profile_update:'Обновление адреса сервера', latency:'Высокая задержка', applied:'Применение подписки', recovered:'Обновление профиля', rolled_back:'Откат',
         confirm:'Подтверждение отказа', fetch:'Обновление подписки', same:'Проверка нового адреса', reserves:'Проверка резервов'})[value] || '—';
 }
+const capabilityNames = { fetch: 'Загрузка подписки', monitoring: 'Мониторинг', selector: 'Selector',
+    switch: 'Переключение', apply: 'Применение', rollback: 'Откат', recovery: 'Восстановление', measurement: 'Измерения' };
+const compatibilityReasons = {
+    generator_unavailable: 'Нет подходящего генератора Podkop',
+    unsupported_main: 'Конфигурация MAIN не поддерживает эту операцию',
+    unsupported_runtime: 'Рабочая конфигурация sing-box не поддерживает эту операцию',
+    api_unavailable: 'API управления sing-box недоступен', runtime_unavailable: 'Рабочая конфигурация sing-box недоступна',
+    sing_box_unavailable: 'sing-box недоступен', dependency_missing: 'Отсутствует необходимая зависимость',
+    rollback_unavailable: 'Нет сохранённой копии для отката', recovery_required: 'Сначала требуется восстановить прерванную транзакцию',
+    validation_failed: 'sing-box отклонил подготовленную конфигурацию', generation_failed: 'Не удалось подготовить конфигурацию Podkop',
+    generated_nodes_mismatch: 'Генератор изменил список серверов', routing_changed: 'Подготовленная конфигурация меняет защищённые маршруты',
+    state_conflict: 'Состояние Toolkit расходится с конфигурацией Podkop', operation_failed: 'Не удалось выполнить операцию'
+};
+function compatibilityReason(reason) { return compatibilityReasons[reason] || 'Обнаружена несовместимость операции'; }
+function capabilityBlocked(state, name) { return state.compatibility?.capabilities?.[name]?.available === false; }
+function operationCapability(kind) { return ({seed: 'selector', select: 'switch', latency: 'measurement', service: 'measurement', speed: 'measurement', batch: 'measurement'})[kind] || kind; }
 function timestamp(value, compact) {
     return value ? new Date(value * 1000).toLocaleString('ru-RU', compact ?
         { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' } : undefined) : '—';
@@ -178,14 +194,35 @@ return view.extend({
         } }, [E('summary', {}, 'Статистика HTTPS'), controls,
             E('p', {}, 'Выборочная доступность контрольного HTTPS endpoint. Не подтверждает работу приложений, сообщений или звонков. Статистика загружается при открытии и смене выбора.')].concat(body));
     },
+    compatibilityPanel: function(s) {
+        const compatibility = s.compatibility;
+        if (!compatibility) return E('div');
+        const versions = compatibility.versions || {}, capabilities = compatibility.capabilities || {};
+        return E('section', { 'class': 'cbi-section stk-panel stk-section', 'aria-label': 'Совместимость' }, [
+            E('h3', {}, 'Совместимость'),
+            E('p', {}, 'OpenWrt: ' + (versions.openwrt || 'не определена') + ' · Podkop: ' +
+                (versions.podkop || 'не определена') + ' · sing-box: ' + (versions.sing_box || 'не определена')),
+            ...((compatibility.warnings || []).includes('untested_versions') ? [E('p', { role: 'status' },
+                'Эта связка версий не проверена. Это предупреждение не блокирует работу.')] : []),
+            ...(s.fetch_stage_error ? [E('p', { role: 'status' }, 'Подписка загружена: ' + (count(s.downloaded_count) ?? '—') +
+                ' серверов. Подготовка применения: ' + compatibilityReason(s.fetch_stage_error) + '.')] : []),
+            E('ul', {}, Object.keys(capabilityNames).map(name => {
+                const capability = capabilities[name];
+                return E('li', {}, capabilityNames[name] + ': ' + (capability?.available === false ?
+                    'недоступно — ' + compatibilityReason(capability.reason) : capability?.available === true ?
+                    'предварительно доступно' : 'не проверено'));
+            })),
+            E('p', {}, 'Показаны предварительные проверки возможностей. Окончательная проверка выполняется при операции; применение проверяет конфигурацию перед изменением MAIN.')
+        ]);
+    },
     selectedTests: function() { return Object.keys(labels).filter(kind => this.tests[kind]); },
     notify: function(message) { ui.addNotification(null, E('p', {}, message), 'warning'); },
     operation: async function(kind, arg) {
-        if (this.running || this.localBusy || this.state.busy || !this.canWrite || this.state.compatible === false) return;
+        if (this.running || this.localBusy || this.state.busy || !this.canWrite || capabilityBlocked(this.state, operationCapability(kind))) return;
         this.localBusy = true; this.redraw();
         try {
             const result = await actions[kind](arg);
-            if (result.ok === false) this.notify(result.error || 'Операция отклонена');
+            if (result.ok === false) this.notify(compatibilityReasons[result.error] || result.error || 'Операция отклонена');
             // RPC enqueues work; allow the existing worker to acquire its lock before polling.
             await new Promise(resolve => setTimeout(resolve, 1000));
             let s = await this.refresh();
@@ -201,7 +238,7 @@ return view.extend({
         ]);
     },
     startTests: function(ids, kinds) {
-        if (!ids.length || !kinds.length || this.running || this.localBusy || this.state.busy || !this.canWrite || this.state.compatible === false) return;
+        if (!ids.length || !kinds.length || this.running || this.localBusy || this.state.busy || !this.canWrite || capabilityBlocked(this.state, 'measurement')) return;
         const cap = this.state.speed_bytes;
         if (kinds.includes('speed')) {
             if (!Number.isFinite(cap)) { this.notify('Лимит скорости неизвестен. Обновите список.'); return; }
@@ -220,14 +257,14 @@ return view.extend({
     },
     stopTests: function() { this.stopping = true; this.redraw(); },
     runTests: async function(ids, kinds, cap) {
-        if (this.running || this.localBusy || !this.canWrite) return;
+        if (this.running || this.localBusy || !this.canWrite || capabilityBlocked(this.state, 'measurement')) return;
         this.running = true; this.stopping = false;
         this.progress = { done: 0, total: ids.length, message: kinds.map(k => k === 'service' ? this.state.service_name || labels[k] : labels[k]).join(' · ') };
         this.redraw();
         let message = 'Проверка завершена', cancelSent = false;
         try {
             const s = await this.refresh();
-            if (s.compatible === false) throw new Error('Несовместимое состояние');
+            if (capabilityBlocked(s, 'measurement')) throw new Error(compatibilityReason(s.compatibility.capabilities.measurement.reason));
             if (s.busy) throw new Error('Роутер выполняет другое задание');
             if (kinds.includes('speed') && s.speed_bytes !== cap) throw new Error('Лимит трафика изменился; подтвердите запуск заново');
             if (this.stopping || this.container && this.container.isConnected === false) {
@@ -266,7 +303,8 @@ return view.extend({
         finally { this.running = false; this.progress.message = message; this.redraw(); }
     },
     content: function(s) {
-        const disabled = !!s.busy || s.compatible === false || !this.canWrite || this.running || this.localBusy;
+        const disabled = !!s.busy || !this.canWrite || this.running || this.localBusy;
+        const unavailable = capability => disabled || capabilityBlocked(s, capability);
         const nodes = s.nodes || [], active = nodes.find(n => n.selected), preferred = nodes.find(n => n.id === s.preferred_id), serviceName = s.service_name || 'Telegram Web';
         const rows = nodes.map(n => {
             const t = n.test || {}, service = t.service;
@@ -282,7 +320,7 @@ return view.extend({
                 E('p', {}, 'Последний запуск: ' + (Object.keys(this.failures[n.id] || {}).map(kind => labels[kind] + ': ' + this.failures[n.id][kind]).join(' · ') || '—'))
             ]);
             const more = this.details('more-' + n.id, 'Ещё', [E('div', { 'class': 'stk-buttons' },
-                Object.keys(labels).map(kind => button(kind === 'service' ? serviceName : labels[kind], () => this.startTests([n.id], [kind]), disabled)))]);
+                Object.keys(labels).map(kind => button(kind === 'service' ? serviceName : labels[kind], () => this.startTests([n.id], [kind]), unavailable('measurement'))))]);
             return E('tr', { 'class': 'tr' + (n.selected ? ' active' : '') }, [
                 E('td', { 'class': 'td' }, [E(n.selected ? 'strong' : 'span', {}, flag(n.name) + n.name), details]),
                 E('td', { 'class': 'td' }, [n.selected ? 'Активный' : '', n.id === s.preferred_id ? ' · Предпочтительный' : ''].join('') || '—'),
@@ -291,14 +329,15 @@ return view.extend({
                 E('td', { 'class': 'td' }, t.speed_stale && (t.at || t.mbps != null) ? 'Устарела' : t.mbps != null ? number(t.mbps) + ' Мбит/с' + (t.short_sample ? ' · короткая выборка' : '') : '—'),
                 E('td', { 'class': 'td', title: 'Последняя актуальная проверка; время каждого теста — в подробностях' }, timestamp(times.length ? Math.max.apply(null, times) : null, true)),
                 E('td', { 'class': 'td' }, E('div', { 'class': 'stk-buttons' }, [
-                    button('Выбрать', () => this.operation('select', n.id), disabled || n.selected && n.id === s.preferred_id),
-                    button('Тест', () => this.startTests([n.id], this.selectedTests()), disabled || !this.selectedTests().length), more
+                    button('Выбрать', () => this.operation('select', n.id), unavailable('switch') || n.selected && n.id === s.preferred_id),
+                    button('Тест', () => this.startTests([n.id], this.selectedTests()), unavailable('measurement') || !this.selectedTests().length), more
                 ]))
             ]);
         });
         return E('div', { 'class': 'stk-dashboard' }, [
             E('style', {}, '.stk-dashboard .stk-section{margin-bottom:20px}.stk-dashboard .stk-panel{padding:14px}.stk-dashboard .stk-controls,.stk-dashboard .stk-buttons,.stk-dashboard .stk-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.stk-dashboard .stk-summary{gap:8px 24px;margin-bottom:12px}.stk-dashboard .stk-controls{gap:12px 16px}.stk-dashboard label{display:inline-flex;align-items:center;gap:6px}.stk-dashboard .stk-table{overflow-x:auto}.stk-dashboard table{min-width:780px}.stk-dashboard .stk-table .table{display:table!important}.stk-dashboard .stk-table .tr{display:table-row!important}.stk-dashboard .stk-table .th,.stk-dashboard .stk-table .td{display:table-cell!important}.stk-dashboard .stk-table .tr::before,.stk-dashboard .stk-table .td::before{display:none!important}.stk-dashboard .td,.stk-dashboard .th{text-align:left;vertical-align:top;padding:10px 8px}.stk-dashboard details{overflow-wrap:anywhere}.stk-dashboard details p{margin:8px 0}.stk-dashboard summary{cursor:pointer}.stk-dashboard td details{margin-top:6px}.stk-dashboard .stk-progress{margin:12px 0 0}.stk-dashboard .stk-buttons .cbi-button{margin:0}'),
             E('h2', {}, 'Серверы и подписка'),
+            this.compatibilityPanel(s),
             E('section', { 'class': 'stk-section' }, [
                 E('div', { 'class': 'stk-summary' }, [
                     E('span', {}, [E('strong', {}, 'Активный сервер: '), active ? active.name : '—']),
@@ -309,21 +348,22 @@ return view.extend({
                     E('span', {}, [E('strong', {}, 'Автоматизация: '), s.enabled ? 'включена' : 'выключена'])
                 ]),
                 E('div', { 'class': 'stk-buttons' }, [button('Обновить список', () => this.refresh().catch(() => this.notify('Не удалось обновить список')), this.running || this.localBusy),
-                    button('Проверить подписку', () => this.operation('fetch'), disabled)
-                ].concat(s.pending ? [button('Применить изменения', () => this.confirmApply(s.pending_version), disabled || s.pending_stale || !s.pending_version)] : [])),
+                    button('Проверить подписку', () => this.operation('fetch'), unavailable('fetch'))
+                ].concat(s.pending ? [button('Применить изменения', () => this.confirmApply(s.pending_version), unavailable('apply') || s.pending_stale || !s.pending_version)] : [])),
                 this.details('page', 'Подробности', [
                     E('p', {}, 'Состояние: ' + (s.state || 'не инициализировано') + ' · ' + (s.error || '—') + (s.busy ? ' · Выполняется задание' : '')),
                     E('p', {}, 'Источник выбора: ' + policyLabel(s.selection_origin) + ' · Причина переключения: ' + policyLabel(s.last_switch_reason)),
                     E('p', {}, 'Восстановление: ' + policyLabel(s.recovery && s.recovery.stage) + ' · Позиция: ' + (s.recovery && s.recovery.cursor != null ? s.recovery.cursor : '—')),
                     E('p', {}, 'Переключение по задержке: ' + (s.policy && s.policy.latency_enabled ? 'включено' : 'выключено') + ' · Пауза до: ' + timestamp(s.policy && s.policy.cooldown_until)),
                     E('p', {}, 'Ошибка подписки: ' + (s.fetch_error || '—') + ' · Применение: ' + timestamp(s.last_apply)),
+                    E('p', {}, 'Путь загрузки: ' + (({system: 'Системное подключение', direct: 'Изолированное прямое подключение', saved_server: 'Сохранённый сервер подписки'})[s.fetch_path] || '—')),
                     E('p', {}, 'Контроль HTTPS: ' + timestamp(s.control && s.control.at) + ' · ' + (s.control ? (s.control.ok === true ? 'Получен HTTPS-ответ' : s.control.ok === false ? 'Нет ответа' : 'Неизвестно') + ' · Неудачных проб: ' + s.control.failures : 'Не проверен')),
                     E('p', {}, 'HTTPS-проба не подтверждает полноценную работу Telegram/Discord, сообщений или звонков.'),
                     E('p', {}, 'Pending: ' + (s.pending_stale ? 'устарел' : s.pending ? 'ожидает' : 'нет') + ' · Версия: ' + (s.pending_version || '—') + ' · Получена: ' + timestamp(s.pending_version_at) + ' · Проверен: ' + timestamp(s.pending_verified_at)),
                     E('p', {}, 'Начало выдержки: ' + timestamp(s.pending_series_started_at) + ' · Граница ожидания: ' + timestamp(s.pending_deadline_at)),
                     E('p', {}, 'Последняя попытка apply: ' + timestamp(s.last_apply_attempt) + ' · ' + (s.last_apply_error || s.apply_blocked_reason || '—')),
                     E('p', {}, 'Измерения хранятся в RAM. Скорость — ограниченная выборка, не максимум линии. Проверки используют принятые профили.'),
-                    button('Прочитать текущий MAIN', () => this.operation('seed'), disabled)
+                    button('Прочитать текущий MAIN', () => this.operation('seed'), unavailable('selector'))
                 ])
             ]),
             E('section', { 'class': 'cbi-section stk-panel stk-section', 'aria-label': 'Проверить серверы' }, [
@@ -336,7 +376,7 @@ return view.extend({
                         E('option', { value: 'all', selected: this.scope === 'all' ? true : null }, 'Все серверы'),
                         E('option', { value: 'active', selected: this.scope === 'active' ? true : null }, 'Только активный')])]),
                     button('Запустить проверку', () => this.startTests(nodes.filter(n => this.scope === 'all' || n.selected).map(n => n.id), this.selectedTests()),
-                        disabled || !this.selectedTests().length || !nodes.some(n => this.scope === 'all' || n.selected)),
+                        unavailable('measurement') || !this.selectedTests().length || !nodes.some(n => this.scope === 'all' || n.selected)),
                     ...(this.running ? [button('Остановить', () => this.stopTests(), this.stopping)] : [])
                 ])),
                 ...(this.progress ? [E('p', { 'class': 'stk-progress', role: 'status', 'aria-live': 'polite' }, 'Проверено ' + this.progress.done + ' из ' + this.progress.total + ' · ' +

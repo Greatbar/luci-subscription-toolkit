@@ -1,35 +1,114 @@
-# Compatibility profile / профиль совместимости
+# Совместимость v0.3
 
-- OpenWrt 25.12.5 userspace, x86_64 Docker test namespace, host kernel.
-- Unmodified public Podkop 0.7.22 source at
-  `c0a2736bb95884c19fedf638345ed6148c5fd6af`; normal package substitution of
-  `__COMPILED_VERSION_VARIABLE__` with `0.7.22`.
-- Official sing-box 1.14.2 linux-amd64-musl binary for the lab.
-- Official OpenWrt sing-box init script from openwrt/packages revision
-  `54d77dd5714bb4747c4bf061735304d18076de0b`, also byte-identical to the init script
-  in the public sing-box 1.13.21-r1 APK used for test-image preparation.
+Неизвестные версии OpenWrt, Podkop и sing-box не запрещают установку и работу.
+LuCI показывает версии и предупреждение для непроверенных сочетаний. Блокируется
+конкретная операция, если отсутствует необходимый интерфейс или не проходит её
+проверка. Предварительная доступность в LuCI не означает аппаратную сертификацию.
 
-The standalone profile pins the official public init script. Local device
-adaptations and their fingerprints are not shipped in the public package.
-All ten Podkop implementation hashes match the public source byte-for-byte.
-Runtime algorithms, internal filenames, RPC/UCI interfaces and state schemas stay
-at the historical r6 baseline; v0.2 adds the documented policy and history extensions. The package name and displayed product titles change for independent branding.
+| Возможность | Необходимые проверки |
+|---|---|
+| Загрузка подписки | HTTPS curl, разбор поддерживаемого JSON; не требует Selector/генератора |
+| Selector | Конфигурация MAIN, реальная группа Clash API и соответствие списка runtime |
+| Мониторинг | Selector, Clash delay API, ограничение времени; генератор не требуется |
+| Переключение | Selector, владение принятым состоянием, PUT и подтверждающий GET |
+| Применение | Selector, внутренний генератор, staging, sing-box check, маршруты/профили, проверка узла, CAS и резервная копия |
+| Откат | Проверенная резервная копия, генерация старого кандидата и sing-box check до записи; защита от чужих правок |
+| Recovery | Контрольные пробы; переключение на принятый резерв либо полная apply-транзакция для изменённого адреса |
+| Измерения | Принятые профили, отдельный sing-box и поддержка возможностей конкретного профиля |
 
-A public build does not certify the home installation or an arbitrary device.
-The addon fails closed on incompatible files or a sing-box version mismatch.
-The lab's synthetic Podkop/sing-box APKs supply minimal dependency metadata;
-they are test artifacts and must never be installed on a router. The addon APK
-contains neither Podkop nor sing-box binaries or init scripts.
+Загрузка сначала использует изолированный DIRECT с bootstrap DNS и routing mark,
+затем принятые VLESS-профили; при отсутствии принятого состояния пробует получить
+их из работающего MAIN. Обычный curl — последний путь и явно обозначается как
+системное подключение: он использует системные DNS/маршруты. Отсутствие генератора,
+Selector или бинарника sing-box не является общим запретом загрузки.
 
-Для production нужен отдельно подготовленный пакет sing-box 1.14.2 с указанным
-официальным init и необходимыми build tags. Обычный feed 25.12.5 с 1.13.21
-не подходит. Расширение не устанавливает и не заменяет зависимости скрыто.
+Успешный результат хранится в приватном `/etc/podkop-tools/download.json`.
+`fetch_stage_error` отделяет ошибку подготовки от ошибки загрузки. Неподготовленный
+результат не становится pending-кандидатом; старый pending удаляется при ошибке
+новой подготовки. После прерванной транзакции fetch/source/check сохраняют marker
+и не запускают восстановление MAIN. Применение всегда повторно получает подписку
+и проверяет её перед записью.
 
-## Experimental hardware validation limit
+Хеши реализации и точная версия больше не участвуют в допуске операций.
+`compat.sha256` оставлен как исторический перечень исходных файлов r2; он не
+используется backend. Хеши принятого состояния, резервных копий и проверки
+владения данными остаются обязательными.
 
-The public APK has not yet been tested on a real router with the official
-sing-box init script. The 22.7-second result for all three checks on 11 servers
-comes from a local AX6S installation with a different init fingerprint. Earlier
-OpenWrt lab coverage and focused batch checks do not certify public-APK hardware
-installation. Required versions remain OpenWrt 25.12.5, Podkop 0.7.22 and
-sing-box 1.14.2 with the pinned official init and uTLS/Clash API support.
+## Внутренний генератор Podkop
+
+Сравнены публичные теги 0.7.14 и 0.7.22. `sing_box_init_config`, основной Selector
+и константы имеют общий контракт; версионная развилка не нужна. В 0.7.22 есть
+дополнительная обработка resolve-rule и изменения NFT/диагностики, не требующие
+копирования генератора в Toolkit.
+
+`generate --check` только читает исходник, проверяет функцию, границу CLI и
+синтаксис извлечённого префикса. Он не исполняет Podkop и не создаёт staging.
+Фактический запуск использует префикс до `case "$1" in`, переустанавливает
+`UCI_CONFIG_DIR` после импортов, перенаправляет rulesets в staging и проверяет
+целевой путь конфигурации. Отсутствующие библиотеки/изменённый внутренний контракт
+могут обнаружиться при фактической генерации; статический preflight не гарантирует
+совместимость произвольного будущего Podkop.
+
+## Проверка двух связок
+
+Оба целевых прогона завершились успешно: **20 проверок на каждой связке**.
+
+| Операция | Podkop 0.7.22 + sing-box 1.14.2 | Podkop 0.7.14 + sing-box 1.12.17 |
+|---|---|---|
+| Загрузка и разбор подписки | Пройдено | Пройдено |
+| Мониторинг через Clash delay API | Пройдено | Пройдено |
+| Чтение реального Selector | Пройдено | Пройдено |
+| Переключение и подтверждение выбора | Пройдено | Пройдено |
+| Staging, check, apply и native reload | Пройдено | Пройдено |
+| Откат профилей, маршрутов и независимых настроек | Пройдено | Пройдено |
+| Обновление адреса с сохранением stable ID | Пройдено | Пройдено |
+
+Дополнительно для обеих связок проверены: изменение версии на `99.0.0-test` и
+безопасное изменение исходника; загрузка без генератора, API и бинарника sing-box;
+получение резервных профилей из работающего MAIN до первого seed; сохранение
+незавершённой транзакции при fetch; отказ apply при отсутствии генератора;
+мониторинг без генератора; защита при изменённой контрольной сумме состояния;
+отказ apply/rollback на невалидном staging; установка APK без обновления зависимостей.
+
+Rollback сравнивался по полным runtime-данным, принятым узлам, выбранному ID,
+порядку Selector и всем независимым UCI-настройкам. Порядок query-параметров и
+кодирование фрагмента VLESS URI нормализовались независимо от Toolkit: это
+эквивалентные представления строки, а не потеря данных. Побайтовое совпадение UCI
+после отката не обещается.
+
+Обе связки проверяются на OpenWrt 25.12.5 x86_64 userspace в отдельных Docker
+namespace с host kernel. Реальные sing-box, Podkop generation, API, VLESS,
+контролируемые HTTPS/DNS fixtures; метаданные пакетов Podkop/sing-box синтетические.
+Официальный init sing-box взят из закреплённого публичного входа стенда.
+
+Это не проверка OpenWrt 25.12.2/r32802 на mediatek/filogic/aarch64_cortex-a53.
+Номера версии недостаточно для гарантии build tags, стороннего init и аппаратного
+network dataplane. Тестовые VLESS-профили используют security=none; наличие uTLS
+и Clash API проверяется по бинарнику, но TLS/Reality-handshake, gRPC и массовые
+speed/service-пробы этим прогоном не сертифицируются.
+
+## Воспроизведение
+
+Публичные входы закреплены SHA-256 в `tools/sources.lock.json`; это проверка
+загружаемых тестовых архивов, а не запрет других установленных версий.
+
+```sh
+python3 -B tools/prepare.py --lab --compat
+python3 -B tests/podkop-tools/generator.py
+python3 -B tests/podkop-tools/compat-integration.py --profile current --preflight
+python3 -B tests/podkop-tools/compat-integration.py --profile legacy --preflight
+python3 -B tests/podkop-tools/compat-integration.py --profile current
+python3 -B tests/podkop-tools/compat-integration.py --profile legacy
+```
+
+Результаты и SHA-256 проверенных product inputs пишутся в
+`.build/compat/{current,legacy}/results.json` и `source-sha256.json`.
+Стенд создаёт только новые контейнеры/сети с префиксом `subscription-toolkit-compat-`
+и удаляет собственные ресурсы. Test driver имеет Docker socket: запускайте только
+из доверенной копии. Эти APK — лабораторные артефакты, не пакеты для роутера.
+
+APK-зависимости берутся из публичного сборщика. Установка с `--no-network`
+проверяет достаточность уже установленных Podkop/sing-box без минимальных/точных
+версий и без обновления. Это доказательство dependency expression на APK,
+а не тест официальных vendor-пакетов каждой архитектуры. IPK/opkg этим изменением
+не добавляется.

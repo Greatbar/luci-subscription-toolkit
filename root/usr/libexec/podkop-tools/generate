@@ -2,10 +2,28 @@
 # SPDX-License-Identifier: GPL-2.0-only
 set -e
 job=/tmp/podkop-tools/job
-# Source the hash-verified installed implementation, stopping before its CLI.
-awk '/^case "\$1" in/ {exit} {print}' /usr/bin/podkop > "$job/functions.sh"
+unavailable() { printf '%s\n' generator_unavailable >&2; exit 1; }
+# Internal generation has no public CLI. Check the contract, not a version/hash.
+# Never source Podkop during this read-only preflight or include its CLI dispatcher.
+extract_functions() {
+    awk '
+        /^[[:space:]]*case[[:space:]]+"?\$(1|\{1\})"?[[:space:]]+in([[:space:]]|$)/ { boundary = 1; exit }
+        { print }
+        END { if (!boundary) exit 1 }
+    ' /usr/bin/podkop
+}
+[ -r /usr/bin/podkop ] || unavailable
+# Both supported native generators declare this function; whitespace is immaterial.
+extract_functions 2>/dev/null | grep -Eq '^[[:space:]]*(function[[:space:]]+)?sing_box_init_config[[:space:]]*\([[:space:]]*\)' || unavailable
+extract_functions >/dev/null 2>&1 || unavailable
+extract_functions 2>/dev/null | /bin/sh -n 2>/dev/null || unavailable
+if [ "${1:-}" = --check ]; then exit 0; fi
+[ "$#" -eq 0 ] || unavailable
+[ -d "$job/uci" ] && [ -d "$job/rulesets" ] || unavailable
+extract_functions > "$job/functions.sh" 2>/dev/null || unavailable
 (
     . "$job/functions.sh"
+    command -v sing_box_init_config >/dev/null || exit 1
     # /lib/config/uci.sh resets this variable when sourced. Set it AFTER imports.
     UCI_CONFIG_DIR="$job/uci"
     config_load podkop
@@ -27,5 +45,5 @@ awk '/^case "\$1" in/ {exit} {print}' /usr/bin/podkop > "$job/functions.sh"
     TMP_RULESET_FOLDER="$job/rulesets"
     rm -f "$TMP_RULESET_FOLDER"/*
     sing_box_init_config
-) >/dev/null 2>&1
-test -s "$job/generated.json"
+) >/dev/null 2>&1 || { printf '%s\n' generation_failed >&2; exit 1; }
+test -s "$job/generated.json" || { printf '%s\n' generation_failed >&2; exit 1; }

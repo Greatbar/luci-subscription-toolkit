@@ -1,5 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-only
 import * as fs from 'fs';
+import { compatibility_report } from '/usr/libexec/podkop-tools/compatibility.uc';
 import { priority_order, observe, reserve_slot, nonemergency_allowed, latency_better, remaining, selection_event } from '/usr/libexec/podkop-tools/policy.uc';
 import { history_record, history_query, history_snapshot, history_restore } from '/usr/libexec/podkop-tools/statistics.uc';
 import { cursor } from 'uci';
@@ -54,39 +55,6 @@ function status_update(values) {
     let status = load(TMP + '/status.json', {});
     for (let k, v in values) status[k] = v;
     save(TMP + '/status.json', status);
-}
-function implementation_compatible(force) {
-    let names = ['/usr/share/podkop-tools/compat.sha256', '/usr/bin/sing-box'];
-    let manifest = fs.readfile(names[0]) ?? '';
-    for (let line in split(trim(manifest), '\n')) {
-        let path = split(trim(line), /[[:space:]]+/)[1]; if (path) push(names, path);
-    }
-    let signature = { boot: trim(fs.readfile('/proc/sys/kernel/random/boot_id') ?? ''), files: [] };
-    for (let path in names) {
-        let st = fs.stat(path);
-        if (!st || st.type != 'file') die('incompatible');
-        push(signature.files, [path, st.ino, st.inode, st.size, st.mtime, st.ctime]);
-    }
-    let cache = load(TMP + '/compatibility.json');
-    if (!force && cache && canonical(cache) == canonical(signature)) return;
-    if (run(['/usr/bin/sha256sum', '-c', names[0]]).code ||
-        index(must(['/usr/bin/sing-box', 'version'], 'incompatible'), 'sing-box version 1.14.2\n') != 0) die('incompatible');
-    save(TMP + '/compatibility.json', signature);
-}
-function compatible(force) {
-    implementation_compatible(force);
-    let invalid = false;
-    ctx.foreach('podkop', 'section', section => {
-        if (section['.name'] == 'antigravity') {
-            if (section.connection_type != 'proxy' || section.proxy_config_type != 'outbound' ||
-                !match(section.subscription_node_id ?? '', /^[a-f0-9]{64}$/)) invalid = true;
-        } else if (section['.name'] != 'main' && section.connection_type != 'exclusion') invalid = true;
-    });
-    if (invalid || ctx.get('podkop', 'main', 'proxy_config_type') != 'selector' ||
-        ctx.get('podkop', 'settings', 'config_path') != '/etc/sing-box/config.json' ||
-        ctx.get('podkop', 'main', 'connection_type') != 'proxy') die('unsupported_main');
-    let r = runtime(), selector = filter(r.outbounds, o => o.tag == 'main-out' && o.type == 'selector');
-    if (length(selector) != 1 || r.route?.final != 'direct-out') die('unsupported_runtime');
 }
 // Only this explicitly bound profile is additional to the managed MAIN selector.
 function antigravity_node(config, nodes) {
@@ -161,6 +129,90 @@ function api(path, method, payload, probe) {
     if (!length(result.out)) return {};
     try { return json(result.out); } catch (e) { die('api_unavailable'); }
 }
+function dependency(paths) {
+    for (let path in paths) {
+        let st = fs.stat(path);
+        if (!st || st.type != 'file' || !(st.mode & 0111)) die('dependency_missing');
+    }
+}
+function compatible() {
+    // Selector consumers do not depend on the native generator or other sections.
+    if (ctx.get('podkop', 'main', 'proxy_config_type') != 'selector' ||
+        ctx.get('podkop', 'settings', 'config_path') != '/etc/sing-box/config.json' ||
+        ctx.get('podkop', 'main', 'connection_type') != 'proxy') die('unsupported_main');
+    let r = runtime(), selector = filter(r.outbounds ?? [], o => o.tag == 'main-out' && o.type == 'selector');
+    if (length(selector) != 1 || r.route?.final != 'direct-out') die('unsupported_runtime');
+    let group = api('/proxies/main-out');
+    if (group.type != 'Selector' || type(group.all) != 'array' || !length(group.all) ||
+        index(group.all, group.now) < 0 || canonical(group.all) != canonical(selector[0].outbounds)) die('unsupported_runtime');
+}
+function measurement_requirements() {
+    let st = fs.stat('/usr/bin/sing-box');
+    if (!st || !(st.mode & 0111)) die('sing_box_unavailable');
+    dependency(['/usr/bin/curl', '/usr/bin/timeout']);
+}
+function generation_requirements() {
+    let invalid = false;
+    ctx.foreach('podkop', 'section', section => {
+        if (section['.name'] == 'antigravity') {
+            if (section.connection_type != 'proxy' || section.proxy_config_type != 'outbound' ||
+                !match(section.subscription_node_id ?? '', /^[a-f0-9]{64}$/)) invalid = true;
+        } else if (section['.name'] != 'main' && section.connection_type != 'exclusion') invalid = true;
+    });
+    if (invalid || ctx.get('podkop', 'main', 'proxy_config_type') != 'selector' ||
+        ctx.get('podkop', 'main', 'connection_type') != 'proxy' ||
+        ctx.get('podkop', 'settings', 'config_path') != '/etc/sing-box/config.json') die('unsupported_main');
+    if (run(['/usr/libexec/podkop-tools/generate', '--check']).code) die('generator_unavailable');
+    measurement_requirements();
+}
+function require_operation(name) {
+    if (name == 'source') return;
+    if (name == 'fetch' || name == 'check') { dependency(['/usr/bin/curl', '/usr/bin/sha256sum']); return; }
+    if (name == 'rollback') {
+        generation_requirements(); dependency(['/etc/init.d/podkop', '/usr/bin/timeout', '/usr/bin/dig']);
+        if (!fs.stat(BASE + '/rollback/podkop')) die('rollback_unavailable');
+        return;
+    }
+    compatible();
+    if (name == 'health') dependency(['/usr/bin/timeout']);
+    if (index(['apply', 'due'], name) >= 0) {
+        generation_requirements(); dependency(['/etc/init.d/podkop', '/usr/bin/timeout', '/usr/bin/dig']);
+    } else if (index(['speed', 'latency', 'service', 'batch', 'recovery'], name) >= 0) measurement_requirements();
+}
+function failure_reason(fn) {
+    try { fn(); return null; } catch (e) {
+        return index(['unsupported_main', 'unsupported_runtime', 'api_unavailable', 'runtime_unavailable',
+            'dependency_missing', 'sing_box_unavailable', 'generator_unavailable', 'rollback_unavailable'], e.message) >= 0 ? e.message : 'operation_failed';
+    }
+}
+function detected_versions() {
+    // Read metadata; do not execute Podkop just to discover its version.
+    let release = fs.readfile('/etc/openwrt_release') ?? '';
+    let constants = fs.readfile('/usr/lib/podkop/constants.sh') ?? '';
+    let binary = run(['/usr/bin/sing-box', 'version']);
+    return {
+        openwrt: match(release, /DISTRIB_RELEASE=['"]?([0-9A-Za-z._+-]+)/)?.[1] ?? null,
+        podkop: match(constants, /PODKOP_VERSION=['"]?([0-9]+\.[0-9]+\.[0-9A-Za-z._+-]+)/)?.[1] ?? null,
+        sing_box: match(binary.out, /^sing-box version ([0-9A-Za-z._+-]+)/)?.[1] ?? null
+    };
+}
+function compatibility_status() {
+    let selector = failure_reason(compatible);
+    let facts = {
+        fetch: failure_reason(() => require_operation('fetch')), selector,
+        monitoring: failure_reason(() => dependency(['/usr/bin/timeout'])),
+        measurement: failure_reason(measurement_requirements),
+        generation: failure_reason(generation_requirements),
+        reload: failure_reason(() => dependency(['/etc/init.d/podkop', '/usr/bin/timeout', '/usr/bin/dig'])),
+        backup: fs.stat(BASE + '/rollback/podkop') ? null : 'rollback_unavailable'
+    };
+    let report = compatibility_report(facts, detected_versions());
+    if (fs.stat(BASE + '/transaction.json')) {
+        for (let name in ['selector', 'monitoring', 'switch', 'apply', 'recovery', 'measurement'])
+            report.capabilities[name] = { available: false, reason: 'recovery_required' };
+    }
+    return report;
+}
 // Ownership is the ordered MAIN server list, never unrelated routing/DNS options.
 function server_uri(value) {
     // Stock Podkop decodes the whole URI first. Query order and fragment encoding
@@ -227,6 +279,7 @@ function server_selection(state) {
     return node.id;
 }
 function state_seed() {
+    compatible();
     let state = load(BASE + '/state.json');
     if (state) return state;
     let r = runtime(), group = api('/proxies/main-out'), nodes = [], links = ctx.get('podkop', 'main', 'selector_proxy_links');
@@ -400,7 +453,14 @@ function candidate_snapshot(state, nodes, selected, verified_at, skipped) {
     candidate.before_selected = selected; candidate.skipped = skipped ?? [];
     return candidate;
 }
+function validate_generated_routes(generated, nodes) {
+    let selectors = filter(generated.outbounds ?? [], o => o.tag == 'main-out');
+    if (generated.route?.final != 'direct-out' || length(selectors) != 1 || selectors[0].type != 'selector' ||
+        canonical(selectors[0].outbounds) != canonical(map(nodes, (n, i) => sprintf('main-%d-out', i + 1))) ||
+        !length(filter(generated.outbounds ?? [], o => o.tag == 'direct-out' && o.type == 'direct'))) die('routing_changed');
+}
 function stage(candidate) {
+    generation_requirements();
     candidate.staged_from = filehash('/etc/config/podkop');
     must(['/bin/cp', '/etc/config/podkop', JOB + '/uci/podkop'], 'staging_failed');
     let staged = cursor(JOB + '/uci', JOB + '/delta', '');
@@ -410,6 +470,7 @@ function stage(candidate) {
     must(['/usr/libexec/podkop-tools/generate'], 'generation_failed');
     must(['/usr/bin/sing-box', 'check', '-c', JOB + '/generated.json'], 'validation_failed');
     let generated = load(JOB + '/generated.json');
+    validate_generated_routes(generated, candidate.nodes);
     verify_antigravity(staged, candidate.nodes, generated, 'generated_nodes_mismatch');
     let actual = main_profiles(generated);
     if (length(actual) != length(candidate.nodes)) die('generated_nodes_mismatch');
@@ -454,7 +515,7 @@ function record_history(id, ok, delay, reason) {
     try { history_record(id, time(), ok, delay, reason); } catch (e) { }
 }
 function select_node(state, id, reason) {
-    implementation_compatible(true);
+    require_operation('switch');
     let position = index(map(state.nodes, n => n.id), id);
     if (position < 0) die('unknown_node');
     let meta = load(BASE + '/selection.json', { preferred_id: state.selected_id, selected_id: state.selected_id, version: 1 });
@@ -474,7 +535,7 @@ function select_node(state, id, reason) {
     status_update({ state: reason, selected_id: id, control: null });
 }
 function rollback() {
-    implementation_compatible(true);
+    require_operation('rollback');
     let backup = BASE + '/rollback', tx = load(BASE + '/transaction.json');
     if (!fs.stat(backup + '/podkop')) die('rollback_unavailable');
     if (run(['/usr/bin/sha256sum', '-c', backup + '/SHA256SUMS']).code) die('rollback_failed');
@@ -498,7 +559,20 @@ function rollback() {
     must(['/bin/cp', '/etc/config/podkop', JOB + '/uci/podkop'], 'staging_failed');
     let staged = cursor(JOB + '/uci', JOB + '/delta', '');
     sync_antigravity(staged, old.nodes);
-    staged.set('podkop', 'main', 'selector_proxy_links', map(old.nodes, proxy_uri)); staged.commit('podkop');
+    staged.set('podkop', 'main', 'selector_proxy_links', map(old.nodes, proxy_uri));
+    staged.set('podkop', 'settings', 'config_path', JOB + '/generated.json'); staged.commit('podkop');
+    must(['/usr/libexec/podkop-tools/generate'], 'generation_failed');
+    must(['/usr/bin/sing-box', 'check', '-c', JOB + '/generated.json'], 'validation_failed');
+    let rollback_generated = load(JOB + '/generated.json');
+    validate_generated_routes(rollback_generated, old.nodes);
+    verify_antigravity(staged, old.nodes, rollback_generated, 'generated_nodes_mismatch');
+    let rollback_profiles = main_profiles(rollback_generated);
+    if (length(rollback_profiles) != length(old.nodes)) die('generated_nodes_mismatch');
+    for (let i = 0; i < length(old.nodes); i++) {
+        let expected_node = { ...old.nodes[i].outbound, tag: sprintf('main-%d-out', i + 1) };
+        if (canonical(rollback_profiles[i]) != canonical(expected_node)) die('generated_nodes_mismatch');
+    }
+    staged.set('podkop', 'settings', 'config_path', '/etc/sing-box/config.json'); staged.commit('podkop');
     write_main(JOB + '/uci/podkop', expected);
     runtime_cache = null;
     must(['/usr/bin/timeout', '-s', 'TERM', '120', '/etc/init.d/podkop', 'reload'], 'rollback_failed');
@@ -514,7 +588,7 @@ function rollback() {
     die('rollback_failed');
 }
 function apply_candidate(candidate, urgent, selection_reason) {
-    implementation_compatible(true);
+    require_operation('apply');
     let accepted_from = filehash(BASE + '/state.json');
     let state = state_seed(), selected = actual_selection(state);
     if (selected != candidate.before_selected) die('selection_changed');
@@ -575,35 +649,64 @@ function apply_candidate(candidate, urgent, selection_reason) {
     }
 }
 function fetch() {
+    require_operation('fetch');
     expire_pending();
-    let state = state_seed(), selected = actual_selection(state), url = ctx.get('podkop_tools_subscription', 'main', 'url') ?? '';
+    let url = ctx.get('podkop_tools_subscription', 'main', 'url') ?? '';
     check_url(url);
+    let saved = load(BASE + '/state.json', {});
+    // Bootstrap optional fallback profiles from a working MAIN on first use.
+    // Failure to inspect MAIN must never prohibit a direct/system download.
+    if (!length(saved.nodes ?? [])) { try { saved = state_seed(); } catch (e) {} }
+    let selected = saved.selected_id;
     let paths = [{ id: 'direct', outbound: { type: 'direct' } }];
-    let last_path = load(TMP + '/fetch-path.json', ''), preferred = cfg('fallback_id', '');
-    let alternatives = filter(state.nodes, n => n.id != selected);
+    // Saved profiles are optional transport fallbacks, not fetch prerequisites.
+    let alternatives = saved.nodes ?? [], last_path = load(TMP + '/fetch-path.json', ''), preferred = cfg('fallback_id', '');
     for (let wanted in [last_path, preferred]) {
         let node = filter(alternatives, n => n.id == wanted)[0];
         if (node && !length(filter(paths, n => n.id == wanted))) push(paths, node);
     }
-    for (let n in alternatives) if (!length(filter(paths, p => p.id == n.id))) push(paths, n);
-    // A working current profile remains a last fetch path, through an isolated probe.
-    let active = filter(state.nodes, n => n.id == selected)[0];
-    if (active) push(paths, active);
+    for (let n in alternatives) if (n.id != selected && !length(filter(paths, p => p.id == n.id))) push(paths, n);
+    let active = filter(alternatives, n => n.id == selected)[0];
+    if (active && !length(filter(paths, p => p.id == active.id))) push(paths, active);
+    // Retain marked, bootstrap-resolved DIRECT first; ordinary curl is a last
+    // fallback when no isolated sing-box transport is usable. It may follow
+    // system DNS/routing, so report it separately rather than claiming DIRECT.
+    push(paths, { id: 'system' });
     let parsed = null, used = null, started = time();
     for (let path in paths) {
         if (time() - started >= 40 || (execution_deadline != null && execution_deadline - monotime() < 2)) break;
         let response;
-        try { response = get_through(path.outbound, url, JOB + '/response', 8, 2097152); } catch (e) { stop_probe(); continue; }
+        try {
+            response = path.id == 'system' ? curl_request(url, null, JOB + '/response', 8, 2097152) :
+                get_through(path.outbound, url, JOB + '/response', 8, 2097152);
+        } catch (e) { stop_probe(); continue; }
         if (response.code || +response.metrics.http_code != 200) continue;
         try { parsed = parse_provider(fs.readfile(JOB + '/response', 2097153) ?? ''); used = path.id; break; }
         catch (e) { }
     }
     fs.unlink(JOB + '/response');
     if (!parsed) die('subscription_unavailable_or_invalid');
-    let incoming = reconcile(state.nodes, parsed.nodes, hash), verified_at = time();
-    accept_snapshot(state, incoming, selected, verified_at, parsed.skipped);
+    let verified_at = time(), incoming = parsed.nodes, stage_error = null;
+    // A successful download survives an unavailable Selector/native generator.
+    // This private snapshot is never an approved pending transaction.
+    save(BASE + '/download.json', { nodes: incoming, verified_at, skipped: parsed.skipped });
+    try {
+        if (fs.stat(BASE + '/transaction.json')) die('recovery_required');
+        let state = state_seed(); selected = actual_selection(state);
+        incoming = reconcile(state.nodes, parsed.nodes, hash);
+        accept_snapshot(state, incoming, selected, verified_at, parsed.skipped);
+    } catch (e) {
+        let safe = ['recovery_required', 'unsupported_main', 'unsupported_runtime', 'api_unavailable', 'runtime_unavailable', 'state_conflict',
+            'generator_unavailable', 'dependency_missing', 'sing_box_unavailable', 'validation_failed', 'generation_failed',
+            'generated_nodes_mismatch', 'routing_changed', 'uci_changed', 'antigravity_node_missing', 'unrepresentable_stock_uri'];
+        stage_error = index(safe, e.message) >= 0 ? e.message : 'operation_failed';
+        // Never allow an older staged candidate to masquerade as this download.
+        fs.unlink(BASE + '/pending.json');
+        status_update({ state: 'downloaded', pending: false });
+    }
     save(TMP + '/fetch-path.json', used);
-    status_update({ last_success: verified_at, count: length(incoming), skipped: length(parsed.skipped), fetch_path: used == 'direct' ? 'direct' : 'saved_server', error: null, fetch_error: null });
+    status_update({ last_success: verified_at, downloaded_count: length(parsed.nodes), skipped: length(parsed.skipped),
+        fetch_path: used == 'system' ? 'system' : used == 'direct' ? 'direct' : 'saved_server', error: null, fetch_error: null, fetch_stage_error: stage_error });
     return { nodes: incoming, verified_at, skipped: parsed.skipped };
 }
 function apply_pending(manual, approved_version) {
@@ -625,6 +728,8 @@ function apply_pending(manual, approved_version) {
     let version = pending?.source_hash;
     status_update({ last_apply_attempt: time(), last_apply_error: null, apply_blocked_reason: null });
     fetch();
+    let stage_error = load(TMP + '/status.json', {}).fetch_stage_error;
+    if (stage_error) die(stage_error);
     pending = expire_pending();
     if (!pending) { status_update({ apply_blocked_reason: null }); return; }
     if (manual && pending.source_hash != version) die('pending_changed');
@@ -1046,8 +1151,10 @@ function batch(request) {
 }
 function public_status() {
     let state = load(BASE + '/state.json', {}), pending = load(BASE + '/pending.json'), status = load(TMP + '/status.json', {}), tests = load(TMP + '/tests.json', {});
-    status.compatible = true;
-    try { compatible(false); if (index(['incompatible','unsupported_main','unsupported_runtime'], status.error)>=0) delete status.error; } catch (e) { status.compatible = false; status.error = e.message; }
+    status.compatibility = compatibility_status();
+    // Legacy field describes Selector access only; never a global operation gate.
+    status.compatible = status.compatibility.capabilities.selector.available;
+    if (status.error == 'incompatible') delete status.error;
     status.subscription_configured = !!ctx.get('podkop_tools_subscription', 'main', 'url');
     status.speed_bytes = number('speed_bytes', 4194304, 262144, 16777216);
     let service_url = cfg('service_url', 'https://web.telegram.org/k/');
@@ -1124,12 +1231,12 @@ try {
     }
     if (index(['check', 'health', 'due'], command) >= 0 && cfg('enabled', '0') != '1') { print('{"ok":true,"disabled":true}\n'); exit(0); }
     if (command == 'migrate' && fs.stat(BASE + '/transaction.json')) die('recovery_required');
-    if (fs.stat(BASE + '/transaction.json')) {
-        implementation_compatible(); rollback(); fs.unlink(BASE + '/transaction.json');
+    if (fs.stat(BASE + '/transaction.json') && index(['source', 'fetch', 'check'], command) < 0) {
+        rollback(); fs.unlink(BASE + '/transaction.json');
         if (command == 'rollback') { print('{"ok":true}\n'); exit(0); }
     }
     if (command == 'health') execution_deadline = monotime() + 15;
-    compatible(command != 'health');
+    require_operation(command);
     if (command == 'source') {
         let payload = source_payload;
         if (!payload || length(payload) > 8192) die('invalid_url');
@@ -1139,8 +1246,8 @@ try {
             if (!ctx.set('podkop_tools_subscription', 'main', 'url', request.url) || !ctx.commit('podkop_tools_subscription')) die('state_write_failed');
             fs.chmod('/etc/config/podkop_tools_subscription', 0600);
             fs.unlink(BASE + '/pending.json');
-            fs.unlink(BASE + '/change-series.json');
-            status_update({ state: 'source_saved', error: null, last_success: null, fetch_path: null, pending: false });
+            fs.unlink(BASE + '/change-series.json'); fs.unlink(BASE + '/download.json');
+            status_update({ state: 'source_saved', error: null, last_success: null, downloaded_count: null, fetch_stage_error: null, fetch_path: null, pending: false });
         }
     }
     else if (command == 'migrate') migrate_state();
@@ -1167,7 +1274,7 @@ try {
 } catch (e) {
     stop_probe();
     // Never serialize parser/native/curl exceptions or credentials into diagnostics.
-    let known = ['budget_exhausted', 'incompatible', 'unsupported_main', 'unsupported_runtime', 'api_unavailable', 'runtime_unavailable', 'state_conflict',
+    let known = ['budget_exhausted', 'generator_unavailable', 'dependency_missing', 'sing_box_unavailable', 'unsupported_main', 'unsupported_runtime', 'api_unavailable', 'runtime_unavailable', 'state_conflict',
         'uci_changed', 'uci_changed_after_write', 'uci_busy', 'recovery_conflict', 'recovery_required', 'invalid_url', 'invalid_settings', 'unknown_node', 'validation_failed', 'generation_failed', 'generated_nodes_mismatch', 'routing_changed',
         'subscription_unavailable_or_invalid', 'fallback_not_verified', 'ambiguous_identity', 'unrepresentable_stock_uri', 'antigravity_node_missing',
         'apply_rolled_back', 'rollback_failed', 'rollback_unavailable', 'selection_changed', 'speed_cooldown', 'router_busy', 'probe_start_failed',

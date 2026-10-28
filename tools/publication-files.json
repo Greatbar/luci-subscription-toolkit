@@ -72,5 +72,10 @@
   "tools/prepublish.py",
   "tools/publication-files.json",
   "tools/security.py",
-  "tools/sources.lock.json"
+  "tools/sources.lock.json",
+  "root/usr/libexec/podkop-tools/compatibility.uc",
+  "tests/podkop-tools/compatibility.uc",
+  "tests/podkop-tools/generator.py",
+  "tests/podkop-tools/compat-integration.py",
+  "docs/superpowers/plans/2026-10-28-compat-v0.3.md"
 ]

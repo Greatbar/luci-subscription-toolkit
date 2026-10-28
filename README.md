@@ -1,7 +1,7 @@
-# LuCI Subscription Toolkit — v0.2.0 Experimental (0.2.0-r2)
+# LuCI Subscription Toolkit — v0.3.0 development
 
 An independent LuCI extension for subscription management and VLESS measurements.
-Compatible with **Podkop 0.7.22**. This is not an official Podkop product and is
+Checks installed Podkop/sing-box capabilities; unknown versions do not block operations. This is not an official Podkop product and is
 not affiliated with its maintainers. [Русский](README.ru.md).
 
 v0.2.0: [policy, deadlines and history](docs/V0.2.0.md). [Changelog](CHANGELOG.md).
@@ -30,30 +30,25 @@ v0.2.0: [policy, deadlines and history](docs/V0.2.0.md). [Changelog](CHANGELOG.m
 
 ## Compatibility
 
-**Experimental: the public APK has not yet been tested on a real router with
-the official sing-box init script.** The required public compatibility profile
-below is not a hardware installation certification. Earlier isolated OpenWrt
-tests covered this profile; the latest batch changes received focused checks.
+Unknown OpenWrt, Podkop and sing-box versions produce a diagnostic warning, not
+a global prohibition. Package dependencies do not pin Podkop/sing-box versions.
+LuCI reports prerequisites separately for fetch, monitoring, Selector, switching,
+apply, rollback, recovery and measurements. These are preliminary checks, not
+certification of an arbitrary device or build.
 
-All three checks for 11 servers completed in **22.7 seconds** on a Xiaomi Redmi
-Router AX6S with OpenWrt 25.12.5, Podkop 0.7.22 and sing-box 1.14.2. This measured
-a local installation with a different init-script fingerprint, not the public
-APK. It does not establish compatibility with the official init on hardware.
+HTTPS downloads are parsed and saved privately as `/etc/podkop-tools/download.json`
+even if native staging is unavailable. Staging failures have their own diagnostic;
+a previous pending candidate is removed rather than reused as fresh data.
+Apply/rollback retain native staging, `sing-box check`, route/ownership/conflict
+validation and checksummed backups. Only implementation/version allowlisting is
+removed. Switching to an accepted recovery server does not need the generator;
+changing its endpoint uses the full apply transaction.
 
-The checked profile uses **OpenWrt 25.12.5**, APK, **Podkop 0.7.22** and
-**sing-box 1.14.2** with uTLS/Clash API and the official OpenWrt procd init script
-pinned in `root/usr/share/podkop-tools/compat.sha256`. It supports one managed `main` and additional `Exclusion` sections. It requires
-a VLESS Selector and `/etc/sing-box/config.json`. Other versions and
-layouts are unsupported. Hash mismatches block jobs; do not replace hashes merely
-to bypass an incompatibility refusal.
-
-The dependency profile keeps the official sing-box init script; the local
-FlowPilot init is not distributed. v0.2 adds policy and history extensions to the
-r6 architecture. See [compatibility details](docs/COMPATIBILITY.md).
-The official OpenWrt 25.12.5 feed currently provides sing-box 1.13.21;
-`apk add sing-box` alone does not satisfy the 1.14.2 requirement. Prepare a
-compatible sing-box package separately. This addon does not replace its binary or
-upgrade dependencies.
+The internal generator contract was compared for Podkop 0.7.14 and 0.7.22. See
+[the operation matrix and test limits](docs/COMPATIBILITY.md). Docker userspace
+checks do not certify OpenWrt 25.12.2 on ARM hardware. The addon does not replace
+sing-box, upgrade dependencies or firmware. Particular profiles may need optional
+build capabilities such as uTLS/Reality.
 
 The subscription format is a JSON array of Xray configurations, using `remarks`
 and compatible VLESS outbounds: TCP/gRPC with TLS/Reality (synthetic tests also
@@ -74,7 +69,7 @@ python3 tools/build-podkop-tools.py \
 python3 tests/reproducibility.py
 ```
 
-Outputs: `dist/luci-app-subscription-toolkit-0.2.0-r2.apk` and `SHA256SUMS`.
+Outputs: `dist/luci-app-subscription-toolkit-0.3.0-r0.apk` and `SHA256SUMS`.
 The builder normalizes timestamps/permissions and verifies root ownership. The
 APK is unsigned. For an OpenWrt SDK build, place this directory in
 `package/luci-app-subscription-toolkit`, then run
@@ -83,7 +78,7 @@ APK is unsigned. For an OpenWrt SDK build, place this directory in
 ## Install
 
 Check compatibility and make your own configuration backup first. Prepare the
-required Podkop/sing-box versions and dependencies listed in `Makefile`.
+dependencies listed in `Makefile`; no mandatory Podkop/sing-box upgrade is required.
 The old `luci-app-podkop-tools` package and this package cannot coexist because
 they share internal files. Migration of an existing home installation is outside
 this publication's scope.
@@ -91,7 +86,7 @@ this publication's scope.
 Transfer your **locally built and verified** APK to the router, then run there:
 
 ```sh
-apk add --allow-untrusted /tmp/luci-app-subscription-toolkit-0.2.0-r2.apk
+apk add --allow-untrusted /tmp/luci-app-subscription-toolkit-0.3.0-r0.apk
 ```
 
 `--allow-untrusted` is required for this unsigned local APK. Installation does
@@ -134,16 +129,15 @@ must not be attached to issues.
 ## Updates and diagnosis
 
 The addon does not run `apk update/upgrade`, pin official packages or patch their
-files. A Podkop/sing-box update may invalidate the manifest: validate a new
-combination on a separate lab first. Compatibility with later versions is not
-claimed. Update the addon with a verified APK using the same `apk add --allow-untrusted /tmp/<APK>`
+files. After updating Podkop/sing-box, recheck the operations you use; unknown
+versions are reported as warnings. Update the addon with a verified APK using the same `apk add --allow-untrusted /tmp/<APK>`
 command after checking compatibility. Reinstalling this package preserves private state.
 
 Run on the router:
 
 ```sh
 /usr/libexec/podkop-tools/task status
-sha256sum -c /usr/share/podkop-tools/compat.sha256
+/usr/libexec/podkop-tools/generate --check
 sing-box version
 logread -e podkop-tools
 ```

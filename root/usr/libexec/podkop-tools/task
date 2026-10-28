@@ -161,9 +161,13 @@ cleanup() {
             fi ;;
         esac
     fi
-    if [ -f /etc/podkop-tools/transaction.json ]; then
-        timeout -s TERM 150 ucode /usr/libexec/podkop-tools/backend.uc rollback 8>&- >/dev/null 2>&1 || :
-    fi
+    # Downloads and private URL updates never restore an interrupted MAIN.
+    # Leave the marker and recovery to an explicit maintenance operation.
+    case "$task_kind" in source|fetch|check) ;; *)
+        if [ -f /etc/podkop-tools/transaction.json ]; then
+            timeout -s TERM 150 ucode /usr/libexec/podkop-tools/backend.uc rollback 8>&- >/dev/null 2>&1 || :
+        fi ;;
+    esac
     rm -rf "$base/job" "$base/lock"
     if [ "$task_kind" = batch ]; then rm -f "$base/cancel-$token"; fi
 }
