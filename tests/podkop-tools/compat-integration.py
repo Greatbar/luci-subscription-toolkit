@@ -122,7 +122,7 @@ def install(c, lab):
     assert len(dependencies) == 1, 'builder dependency contract changed'
     assert not any(x.startswith(('podkop=', 'podkop>', 'podkop<', 'sing-box=', 'sing-box>', 'sing-box<'))
                    for x in dependencies[0].split()), 'unnecessary pinned dependency'
-    artifact = package('luci-app-subscription-toolkit', '0.3.0-r0', payload, dependencies[0])
+    artifact = package('luci-app-subscription-toolkit', '0.3.0-r1', payload, dependencies[0])
     info = command(str(apk), 'adbdump', str(artifact)).stdout
     assert 'depends:' in info
     # No-network install succeeded with the selected old dependencies retained.

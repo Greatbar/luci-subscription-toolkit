@@ -1,6 +1,19 @@
 # Changelog
 
-## 0.3.0 — development
+## 0.3.0-r1 — 2026-10-29 (Experimental)
+
+- First public v0.3 candidate; runtime implementation matches the tested
+  integration commit `ecbfcc4`. Package revision and publication documentation
+  advance from the privately tested 0.3.0-r0 to 0.3.0-r1.
+- AX6S hardware evidence: OpenWrt 25.12.5, Podkop 0.7.22 and sing-box 1.14.2;
+  overnight auto-apply updated five of nine profiles while retaining MAIN/AG
+  stable IDs and independent routing. Recorded 1192/1196 successful control
+  probes during 23:00–08:59 MSK; all 598 MAIN probes succeeded.
+- Podkop 0.7.14 / sing-box 1.12.17 remains Docker-tested only. Emergency
+  recovery/rollback has not been exercised on physical hardware. Control
+  endpoint results do not certify application access or arbitrary builds.
+- Personal routing integrations and router configuration are not shipped.
+
 
 - Integrate explicitly owned AG Selector with stable independent choices, native
   dashboard selection, apply/recovery synchronization and durable rollback retry.

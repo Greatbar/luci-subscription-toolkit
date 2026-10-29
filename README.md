@@ -1,4 +1,4 @@
-# LuCI Subscription Toolkit — v0.3.0 development
+# LuCI Subscription Toolkit — v0.3.0-r1 (Experimental)
 
 An independent LuCI extension for subscription management and VLESS measurements.
 Checks installed Podkop/sing-box capabilities; unknown versions do not block operations. This is not an official Podkop product and is
@@ -11,8 +11,8 @@ v0.2.0: [policy, deadlines and history](docs/V0.2.0.md). [Changelog](CHANGELOG.m
 - Preferred server and stable-ID reserve priorities; recovery refreshes the subscription first.
 - Deadline-bound minute monitoring, optional latency switching and guarded failback.
 - Bounded hourly HTTPS sample/switch history with 24h, 7d and 30d SVG charts.
-- Additional native Podkop `Exclusion` sections.
-- Optional stable-ID-bound `antigravity` Proxy/Mixed Proxy, refreshed on apply and restored on rollback.
+- Preserve independent native Podkop Proxy, VPN, Exclusion and Block sections and their DNS/routes.
+- Optional independent AG Selector with the full subscription list and a separate stable-ID choice.
 - Serialized scheduled fetch/due with bounded priority waits; clock-jump-safe minute health.
 
 - Fetch a validated subscription candidate without switching MAIN; apply separately.
@@ -29,6 +29,12 @@ v0.2.0: [policy, deadlines and history](docs/V0.2.0.md). [Changelog](CHANGELOG.m
   UUIDs and keys. The masked URL field writes outside the shared LuCI UCI queue.
 
 ## Compatibility
+
+**Experimental.** Real AX6S: OpenWrt 25.12.5 / Podkop 0.7.22 / sing-box 1.14.2.
+The first overnight auto-apply updated five profiles and retained MAIN/AG choices
+and independent routing. Podkop 0.7.14 / sing-box 1.12.17 has been tested only in
+Docker. Emergency recovery/rollback has not been exercised on a physical router.
+Successful control probes do not certify individual applications or other builds.
 
 Unknown OpenWrt, Podkop and sing-box versions produce a diagnostic warning, not
 a global prohibition. Package dependencies do not pin Podkop/sing-box versions.
@@ -84,13 +90,12 @@ APK building does not require Docker, a router, a private subscription or FlowPi
 
 ```sh
 python3 tools/prepare.py
-python3 tools/build-podkop-tools.py \
-  --apk .build/openwrt-imagebuilder-25.12.5-x86-64.Linux-x86_64/staging_dir/host/bin/apk \
-  --output dist
+python3 -B tools/prepublish.py
 python3 tests/reproducibility.py
 ```
 
-Outputs: `dist/luci-app-subscription-toolkit-0.3.0-r0.apk` and `SHA256SUMS`.
+Outputs in `dist/`: `luci-app-subscription-toolkit-0.3.0-r1.apk`,
+`luci-subscription-toolkit-0.3.0-r1-source.tar.gz` and `SHA256SUMS`.
 The builder normalizes timestamps/permissions and verifies root ownership. The
 APK is unsigned. For an OpenWrt SDK build, place this directory in
 `package/luci-app-subscription-toolkit`, then run
@@ -107,7 +112,7 @@ this publication's scope.
 Transfer your **locally built and verified** APK to the router, then run there:
 
 ```sh
-apk add --allow-untrusted /tmp/luci-app-subscription-toolkit-0.3.0-r0.apk
+apk add --allow-untrusted /tmp/luci-app-subscription-toolkit-0.3.0-r1.apk
 ```
 
 `--allow-untrusted` is required for this unsigned local APK. Installation does

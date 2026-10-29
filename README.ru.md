@@ -1,4 +1,4 @@
-# LuCI Subscription Toolkit — v0.3.0 development
+# LuCI Subscription Toolkit — v0.3.0-r1 (Experimental)
 
 Независимое расширение LuCI для управления подпиской и измерений через VLESS.
 Проверяет возможности установленного Podkop и sing-box; неизвестная версия сама
@@ -29,6 +29,13 @@
   адреса серверов и ключи. URL вводится в поле пароля и не входит в UCI-очередь LuCI.
 
 ## Совместимость
+
+**Experimental.** На реальном AX6S проверена связка OpenWrt 25.12.5 / Podkop
+0.7.22 / sing-box 1.14.2. Первое ночное auto-apply обновило пять профилей,
+сохранив выбор MAIN/AG и независимые маршруты. Связка Podkop 0.7.14 / sing-box
+1.12.17 проверена только в Docker. Аварийные recovery/rollback на физическом
+роутере не проверялись. Успех контрольных проб не подтверждает работу отдельных
+приложений или произвольных сборок.
 
 Версии OpenWrt, Podkop и sing-box показываются для диагностики. Непроверенное
 сочетание вызывает предупреждение, но не общий запрет. Установка требует
@@ -95,13 +102,12 @@ Linux x86_64, Python ≥3.12, Node.js ≥20, fakeroot; для Python <3.14 ну�
 
 ```sh
 python3 tools/prepare.py
-python3 tools/build-podkop-tools.py \
-  --apk .build/openwrt-imagebuilder-25.12.5-x86-64.Linux-x86_64/staging_dir/host/bin/apk \
-  --output dist
+python3 -B tools/prepublish.py
 python3 tests/reproducibility.py
 ```
 
-Получаются `dist/luci-app-subscription-toolkit-0.3.0-r0.apk` и `SHA256SUMS`.
+В `dist/` создаются `luci-app-subscription-toolkit-0.3.0-r1.apk`,
+`luci-subscription-toolkit-0.3.0-r1-source.tar.gz` и `SHA256SUMS`.
 Сборщик нормализует timestamp/права и проверяет root-владельцев. APK не подписан.
 Сборка через OpenWrt SDK также доступна: скопируйте этот каталог в
 `package/luci-app-subscription-toolkit` и выполните
@@ -118,7 +124,7 @@ python3 tests/reproducibility.py
 Передайте **собранный вами и проверенный** APK на роутер, затем на роутере:
 
 ```sh
-apk add --allow-untrusted /tmp/luci-app-subscription-toolkit-0.3.0-r0.apk
+apk add --allow-untrusted /tmp/luci-app-subscription-toolkit-0.3.0-r1.apk
 ```
 
 `--allow-untrusted` нужен для этого неподписанного локального APK. Установка не

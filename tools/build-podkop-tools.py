@@ -28,7 +28,7 @@ def build(snapshot, apk, output):
         payload = pathlib.Path(tmp) / 'payload'
         stage_payload(snapshot, payload)
         args = [apk_executable(apk), 'mkpkg', '--info', 'name:luci-app-subscription-toolkit',
-                '--info', 'version:0.3.0-r0', '--info', 'arch:noarch', '--info', 'license:GPL-2.0-only',
+                '--info', 'version:0.3.0-r1', '--info', 'arch:noarch', '--info', 'license:GPL-2.0-only',
                 '--info', 'description:Priority failover and bounded history for stock Podkop',
                 '--info', 'depends:!luci-app-podkop-tools podkop sing-box luci-base rpcd ucode ucode-mod-fs ucode-mod-uci liblucihttp-ucode curl jq bind-dig coreutils-timeout coreutils-nohup',
                 '--files', str(payload), '--output', str(output / APK_NAME)]
