@@ -45,18 +45,7 @@ def main():
         exec_('sing-box','check','-c','/tmp/provider-check.json')
         suites=['integration','recovery','rotation','ownership','antigravity','readiness','baseline','browser'] if a.suite=='all' else ([] if a.suite=='unit' else ['baseline',a.suite] if a.suite in ('browser','readiness') else [a.suite])
         for suite in suites:
-            if suite == 'antigravity':
-                # Host orchestration: the optional-route fixture never needs a
-                # Docker socket or Docker CLI mounted into a test container.
-                sys.path.insert(0,str(ROOT/'tests/podkop-tools'))
-                original_args,original_setup=sys.argv,lab.setup_packages
-                try:
-                    sys.argv=['integration.py','--antigravity']
-                    lab.setup_packages=lambda:None
-                    lab.main()
-                finally:
-                    sys.argv=original_args;lab.setup_packages=original_setup
-            elif suite in ('integration','recovery','rotation','ownership','baseline'):
+            if suite in ('integration','recovery','rotation','ownership','antigravity','baseline'):
                 cert=lab.LAB/'fixture.crt';key=lab.LAB/'fixture.key'
                 run('openssl','req','-x509','-newkey','rsa:2048','-nodes','-keyout',str(key),'-out',str(cert),'-days','1','-subj','/CN=subscription-toolkit-fixture','-addext','subjectAltName=IP:127.0.0.1',stdout=subprocess.DEVNULL,stderr=subprocess.DEVNULL);key.chmod(0o600)
                 image=json.loads((ROOT/'tools/sources.lock.json').read_text())['python_fixture']['image']

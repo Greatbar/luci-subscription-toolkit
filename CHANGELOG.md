@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.1-r1 — 2026-11-20 (Experimental)
+
+- Replace the server table with responsive cards for latency, service status,
+  throughput and per-server actions.
+- Add a latency-only batch action that displays results as each server finishes.
+- Group subscription, routing and compatibility diagnostics into cards. Show
+  subscription preparation failures above the collapsed diagnostics.
+- Render subscription names and diagnostic values as plain text in LuCI.
+
 ## 0.3.0-r1 — 2026-10-29 (Experimental)
 
 - First public v0.3 candidate; runtime implementation matches the tested

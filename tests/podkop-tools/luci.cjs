@@ -31,9 +31,12 @@ function env(write=true) {
 (async()=>{
   const h=env(), v=h.load('dashboard'), tree=v.render(await v.load());
   assert.ok(text(tree).includes('Серверы и подписка'));
-  assert.equal(walk(tree).filter(n=>n.tag==='th').length,7);
+  const cards=walk(tree).filter(n=>n.tag==='article');
+  assert.equal(cards.length,2);
+  assert.match(cards[0].attrs.class,/\bstk-server-active\b/);
+  assert.ok(text(cards[0]).includes('Задержка  45 мс'));
   assert.ok(walk(tree).find(n=>n.tag==='input'&&n.attrs.type==='checkbox'&&n.attrs.checked));
-  assert.ok(text(tree).includes('4,5 Мбит/с')); assert.ok(text(tree).includes('Швеция'));assert.ok(text(tree).includes('speed_failed'));
+  assert.ok(text(tree).includes('4,5 Мбит/с')); assert.ok(text(tree).includes('Швеция'));assert.ok(text(tree).includes('Не удалось измерить скорость'));
   assert.ok(text(tree).includes('<img src=x onerror=alert(1)>'));assert.ok(!JSON.stringify(tree).includes('innerHTML'));
   await button(tree,'Проверить подписку').attrs.click();assert.equal(h.requests.filter(r=>r.method!=='status').at(-1).method,'fetch');
   await button(tree,'Применить изменения').attrs.click();assert.ok(h.modal.tree);assert.ok(!h.requests.some(r=>r.method==='apply'));
@@ -47,9 +50,44 @@ function env(write=true) {
   assert.equal(batches.length,1,'one batch RPC per list');
   assert.deepEqual(batches[0].args.slice(0,2),[h.state.nodes.map(n=>n.id),['latency','service']]);
   assert.ok(text(tree).includes('Telegram Web'));assert.ok(text(tree).includes('Проверено 2 из 2'));
-  assert.ok(text(tree).includes('router_busy'));assert.ok(text(tree).includes('4,5 Мбит/с'));
+  assert.ok(text(tree).includes('Роутер выполняет другое задание'));assert.ok(text(tree).includes('4,5 Мбит/с'));
   assert.ok(!h.requests.some(r=>['select','apply','fetch','seed','latency','service'].includes(r.method)));
   h.state.failId=null;
+  // The shortcut ignores the selected scope and metrics, and renders partial receipts.
+  const quick=env(), qv=quick.load('dashboard'), qt=qv.render(await qv.load());
+  const quickLabel='Проверить задержку всех серверов';
+  const [first,second]=quick.state.nodes;
+  const third={id:'e'.repeat(64),name:'Япония',test:{latency:300}};
+  quick.state.nodes.push(third);
+  qv.scope='active';qv.tests={speed:true};
+  let quickReads=0, partial;
+  quick.hooks.request=(kind,args)=>{
+    if(kind!=='status'||!args[0])return;
+    if(++quickReads===1) {
+      quick.state.batch={...quick.state.batch,state:'running',done:2,latency:{[first.id]:247,[second.id]:null}};
+    } else {
+      partial=qt.children[0];
+      quick.state.batch={...quick.state.batch,state:'finished',done:3,latency:{[first.id]:247,[second.id]:null,[third.id]:380}};
+      first.test.latency=247;third.test.latency=380;
+      Object.assign(second.test,{latency_error:'latency_failed',latency_at:1,latency_stale:false});
+    }
+  };
+  await button(qt,quickLabel).attrs.click();
+  const quickBatches=quick.requests.filter(r=>r.method==='batch');
+  assert.equal(quickBatches.length,1);
+  assert.deepEqual(quickBatches[0].args.slice(0,3),[[first.id,second.id,third.id],['latency'],0]);
+  assert.ok(text(partial).includes('Проверено 2 из 3'));
+  const partialCards=walk(partial).filter(n=>n.tag==='article');
+  assert.ok(text(partialCards[0]).includes('247 мс'));
+  assert.ok(text(partialCards[1]).includes('Замер не удался'));
+  assert.ok(text(partialCards[2]).includes('Проверяется…'));
+  assert.ok(!text(partialCards[2]).includes('300 мс'));
+  assert.ok(button(partial,quickLabel).disabled);
+  assert.equal(walk(partial).find(n=>n.tag==='progress').attrs.value,2);
+  assert.ok(text(qt).includes('Замер не удался'));
+  assert.ok(text(qt).includes('380 мс'));
+  assert.equal(walk(qt).find(n=>n.tag==='progress').attrs.value,3);
+  assert.equal(quick.modal.tree,undefined);
   // Consent bounds the entire speed batch; no browser queue/cooldown sleeps.
   v.tests={speed:true};h.requests.length=0;
   await button(tree,'Запустить проверку').attrs.click();assert.ok(text(h.modal.tree).includes('8 МиБ'));
@@ -69,6 +107,8 @@ function env(write=true) {
   await h.polls[0]();assert.ok(!text(tree).includes('4,5 Мбит/с'));assert.ok(text(tree).includes('Устарела'));
   h.state.busy=true;await h.polls[0]();assert.ok(walk(tree).filter(n=>n.tag==='button'&&text(n)!=='Обновить список').every(n=>n.disabled));
   const ro=env(false),rv=ro.load('dashboard'),rt=rv.render(await rv.load());assert.ok(walk(rt).filter(n=>n.tag==='button'&&text(n)!=='Обновить список').every(n=>n.disabled));
+  const empty=env(),ev=empty.load('dashboard');empty.state.nodes=[];
+  assert.ok(button(ev.render(await ev.load()),quickLabel).disabled);
   // Busy failure belongs to this token, and old receipts cannot finish a new job.
   const busy=env(),bv=busy.load('dashboard');bv.render(await bv.load());
   busy.hooks.request=kind=>{if(kind==='status'&&busy.state.batch)busy.state.batch={...busy.state.batch,state:'failed',error:'busy',done:0};};
@@ -130,17 +170,21 @@ function env(write=true) {
   for (const [reason,label] of Object.entries(stageReasons)) {
     compatibility.state.fetch_stage_error=reason;
     await compatibility.polls[0]();
-    assert.ok(text(compatibilityTree).includes('Подписка загружена: 3 серверов'));
-    assert.ok(text(compatibilityTree).includes('Подготовка применения: '+label));
+    const notice=walk(compatibilityTree).find(n=>n.attrs.class==='stk-notice');
+    assert.ok(text(notice).includes('Скачано серверов: 3'));
+    assert.ok(text(notice).includes(label));
     assert.equal(button(compatibilityTree,'Проверить подписку').disabled,false);
   }
-  assert.ok(text(compatibilityTree).includes('Путь загрузки: Системное подключение'));
+  compatibility.state.pending=false;
+  await compatibility.polls[0]();
+  assert.ok(text(compatibilityTree).includes('Нет готового обновления'));
+  assert.ok(text(compatibilityTree).includes('Путь загрузки Системное подключение'));
   compatibility.state.fetch_path='direct';
   await compatibility.polls[0]();
-  assert.ok(text(compatibilityTree).includes('Путь загрузки: Изолированное прямое подключение'));
+  assert.ok(text(compatibilityTree).includes('Путь загрузки Изолированное прямое подключение'));
   compatibility.state.fetch_path='saved_server';
   await compatibility.polls[0]();
-  assert.ok(text(compatibilityTree).includes('Путь загрузки: Сохранённый сервер подписки'));
+  assert.ok(text(compatibilityTree).includes('Путь загрузки Сохранённый сервер подписки'));
   compatibility.state.compatibility.versions.podkop='<img src=x onerror=alert(1)>';
   await compatibility.polls[0]();
   assert.ok(text(compatibilityTree).includes('<img src=x onerror=alert(1)>'));

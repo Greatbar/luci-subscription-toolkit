@@ -3,7 +3,7 @@
     "source": "htdocs/luci-static/resources/view/podkop-tools/dashboard.js",
     "target": "www/luci-static/resources/view/podkop-tools/dashboard.js",
     "mode": 420,
-    "sha256": "843439fcb8817fd5f1bedd04866b9fba22f6e7feb052b0f033b79c99f9bee686"
+    "sha256": "3fa0b931b29d05732ac21d70d3f6eba2a89d4131f8b297f5ea02b722584949f7"
   },
   {
     "source": "htdocs/luci-static/resources/view/podkop-tools/settings.js",
@@ -39,7 +39,7 @@
     "source": "root/usr/libexec/podkop-tools/backend.uc",
     "target": "usr/libexec/podkop-tools/backend.uc",
     "mode": 420,
-    "sha256": "c311405cd170bc1af7acd6f182be3ac8ebf951393352515325f41b657dd0249d"
+    "sha256": "5260300202337eab517ddeb25b7c1b5403598fc4622292a136bad1fc8d13a0b0"
   },
   {
     "source": "root/usr/libexec/podkop-tools/boot",

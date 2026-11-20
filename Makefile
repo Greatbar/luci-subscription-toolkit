@@ -2,7 +2,7 @@
 # Copyright (C) 2026 LuCI Subscription Toolkit contributors
 include $(TOPDIR)/rules.mk
 PKG_NAME:=luci-app-subscription-toolkit
-PKG_VERSION:=0.3.0
+PKG_VERSION:=0.3.1
 PKG_RELEASE:=1
 PKG_LICENSE:=GPL-2.0-only
 PKG_LICENSE_FILES:=LICENSE

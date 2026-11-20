@@ -371,6 +371,19 @@ def main():
             return
         if '--baseline' in sys.argv:
             task('select',next(n['id'] for n in public()['nodes'] if n['name']=='Латвия'))
+            nodes=public()['nodes']
+            token=os.urandom(32).hex()
+            start=time.monotonic()
+            task('batch',json.dumps({'ids':[n['id'] for n in nodes],'kinds':['latency'],'speed_bytes':0,'token':token}))
+            elapsed=time.monotonic()-start
+            receipt=task('status',token)['batch']
+            live_names={name for name,_ in pairs[:3]}
+            record('latency_batch_keeps_successful_and_failed_measurements',
+                   receipt['state']=='finished' and receipt['done']==len(nodes) and
+                   set(receipt['latency'])=={n['id'] for n in nodes} and all(
+                       type(receipt['latency'][n['id']]) is int if n['name'] in live_names else receipt['latency'][n['id']] is None
+                       for n in nodes))
+            print(f'PASS real latency batch: {len(nodes)} local profiles in {elapsed:.2f} seconds',flush=True)
             return
         if '--ownership' in sys.argv:
             import ownership

@@ -1,4 +1,4 @@
-# LuCI Subscription Toolkit — v0.3.0-r1 (Experimental)
+# LuCI Subscription Toolkit — v0.3.1-r1 (Experimental)
 
 An independent LuCI extension for subscription management and VLESS measurements.
 Checks installed Podkop/sing-box capabilities; unknown versions do not block operations. This is not an official Podkop product and is
@@ -94,8 +94,8 @@ python3 -B tools/prepublish.py
 python3 tests/reproducibility.py
 ```
 
-Outputs in `dist/`: `luci-app-subscription-toolkit-0.3.0-r1.apk`,
-`luci-subscription-toolkit-0.3.0-r1-source.tar.gz` and `SHA256SUMS`.
+Outputs in `dist/`: `luci-app-subscription-toolkit-0.3.1-r1.apk`,
+`luci-subscription-toolkit-0.3.1-r1-source.tar.gz` and `SHA256SUMS`.
 The builder normalizes timestamps/permissions and verifies root ownership. The
 APK is unsigned. For an OpenWrt SDK build, place this directory in
 `package/luci-app-subscription-toolkit`, then run
@@ -112,7 +112,7 @@ this publication's scope.
 Transfer your **locally built and verified** APK to the router, then run there:
 
 ```sh
-apk add --allow-untrusted /tmp/luci-app-subscription-toolkit-0.3.0-r1.apk
+apk add --allow-untrusted /tmp/luci-app-subscription-toolkit-0.3.1-r1.apk
 ```
 
 `--allow-untrusted` is required for this unsigned local APK. Installation does
@@ -123,10 +123,11 @@ in Russian; the English documentation does not imply an English UI translation.
 ## Configure a subscription
 
 The Servers page refreshes public status without importing or applying changes.
-The check panel and per-row Test button run the checked diagnostics; More opens
-individual tests. A single backend batch checks all accepted servers or the active
-server. Stop cancels further dispatch and waits for active bounded probes to clean
-up. Speed checks require consent to the total configured traffic cap. Different
+The check panel and the Check button on each server card run the selected
+diagnostics. Individual checks opens a single test. The latency shortcut tests
+all accepted servers and displays results as they arrive. The general batch can
+also target just the active server. Stop cancels further dispatch and waits for
+active probes to clean up. Speed checks require consent to the total traffic cap. Different
 servers run without a fixed pause; repeated speed probes of the same stable ID
 within 60 seconds are skipped with an explicit cooldown result. A busy backend
 rejects the batch rather than silently losing it. Latency, speed and Telegram Web

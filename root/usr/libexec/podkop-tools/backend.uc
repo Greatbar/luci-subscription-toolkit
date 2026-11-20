@@ -1215,6 +1215,7 @@ function batch(request) {
     let configuration_hash = seen.service ? filehash('/etc/config/podkop') : null;
     let tests = load(TMP + '/tests.json', {}), jobs = [], speed_jobs = [], completed = {}, errors = {};
     let receipt = { token: request.token, state: 'running', done: 0, total: length(nodes), started_at: time(), errors };
+    if (seen.latency) receipt.latency = {};
     fs.writefile(JOB + '/batch-token', request.token + '\n');
     let deadline = int(split(fs.readfile('/proc/uptime'), ' ')[0]) + 210;
     fs.writefile(JOB + '/deadline', deadline + '\n');
@@ -1257,6 +1258,7 @@ function batch(request) {
             item.at = time(); item.profile_signature = canonical(node.outbound);
         }
         tests[node.id] = item; save(TMP + '/tests.json', tests);
+        if (job.kind == 'latency') receipt.latency[node.id] = item.latency ?? null;
         completed[node.id]++;
         receipt.done = length(filter(nodes, n => completed[n.id] == length(request.kinds)));
         batch_receipt(receipt);
@@ -1279,7 +1281,7 @@ function batch(request) {
     receipt.finished_at = time(); batch_receipt(receipt);
 }
 function public_status() {
-    let state = load(BASE + '/state.json', {}), pending = load(BASE + '/pending.json'), status = load(TMP + '/status.json', {}), tests = load(TMP + '/tests.json', {});
+    let state = load(BASE + '/state.json', {}), pending = load(BASE + '/pending.json'), status = load(TMP + '/status.json', {});
     status.compatibility = compatibility_status();
     // Legacy field describes Selector access only; never a global operation gate.
     status.compatible = status.compatibility.capabilities.selector.available;
@@ -1289,6 +1291,7 @@ function public_status() {
     let service_url = cfg('service_url', 'https://web.telegram.org/k/');
     status.service_name = match(service_url, /^https:\/\/web\.telegram\.org\//) ? 'Telegram Web' : match(service_url, /^https:\/\/([^\/]+)/)?.[1] ?? 'Проверка HTTPS';
     if (match(ARGV[1] ?? '', /^[a-f0-9]{64}$/)) status.batch = load(TMP + '/batch-' + ARGV[1] + '.json');
+    let tests = load(TMP + '/tests.json', {});
     status.speed_next_at = 0; // Retained RPC field: there is no global speed cooldown.
     let selection = load(BASE + '/selection.json', {});
     status.preferred_id = selection.preferred_id ?? state.selected_id;

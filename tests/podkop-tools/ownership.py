@@ -11,6 +11,15 @@ def check(name,ok):
  assert ok,name
  passed.append(name);print('PASS ownership',name,flush=True)
 def read(path):return json.loads(l.dex('cat',path).stdout)
+def fetch_without_staging(reason):
+ before=l.fingerprint();pid=l.pid()
+ accepted=l.dex('sha256sum','/etc/podkop-tools/state.json').stdout
+ result=l.task('fetch',check=False)
+ status=l.public()
+ return (result.get('ok') is True and status.get('fetch_stage_error')==reason
+         and not status['pending'] and status['downloaded_count']==3
+         and l.fingerprint()==before and l.pid()==pid
+         and l.dex('sha256sum','/etc/podkop-tools/state.json').stdout==accepted)
 def driver(body):
  script="umask 077\nmkdir -p /tmp/podkop-tools/job/uci /tmp/podkop-tools/job/delta /tmp/podkop-tools/job/rulesets\nsed '/^let command = ARGV/,$d' /usr/libexec/podkop-tools/backend.uc > /tmp/ownership.uc\ncat >> /tmp/ownership.uc <<'UC'\n"+body+"\nUC\nucode /tmp/ownership.uc\n"
  r=subprocess.run(['docker','exec','-i',l.MAIN,'sh','-s'],input=script,text=True,capture_output=True)
@@ -28,17 +37,17 @@ def custom(state,start_exit,endpoint):
  check('deleting_domain_fetch_allowed',l.task('fetch').get('ok') is True and l.pid()==pid)
  l.uci('podkop.settings.log_level','info')
  check('independent_setting_fetch_allowed',l.task('fetch').get('ok') is True)
- # Manual server mutation must still fail, including a nonselected server.
+ # A manual edit to any managed server blocks staging, while download remains available.
  links=l.dex('uci','get','podkop.main.selector_proxy_links').stdout.strip().split(' ')
  l.dex('uci','delete','podkop.main.selector_proxy_links')
  for i,link in enumerate(links):l.dex('uci','add_list','podkop.main.selector_proxy_links='+ (link.replace(':14503',':14599') if i==2 else link))
  l.dex('uci','commit','podkop')
- check('manual_server_conflict',l.task('fetch',check=False).get('error')=='state_conflict')
+ check('manual_server_conflict',fetch_without_staging('state_conflict'))
  l.dex('uci','delete','podkop.main.selector_proxy_links')
  for link in links:l.dex('uci','add_list','podkop.main.selector_proxy_links='+link)
  l.dex('uci','commit','podkop')
  saved=read('/etc/podkop-tools/state.json');bad=json.loads(json.dumps(saved));bad['nodes'][0]['id']='a'*64;l.write('/etc/podkop-tools/state.json',json.dumps(bad))
- check('stable_id_corruption_blocks',l.task('fetch',check=False).get('error')=='state_conflict');l.write('/etc/podkop-tools/state.json',json.dumps(saved))
+ check('stable_id_corruption_blocks_staging',fetch_without_staging('state_conflict'));l.write('/etc/podkop-tools/state.json',json.dumps(saved))
  # CAS detects a normal UCI edit between staging and installation, never overwrites it.
  out=driver("""let state=load(BASE+'/state.json'),candidate={nodes:state.nodes};stage(candidate);
 let p=run(['/bin/sh','-c',"uci add_list podkop.main.user_domains='concurrent.example'; uci commit podkop"]);
@@ -81,7 +90,8 @@ print(sprintf('%J',{error,transaction:fs.stat(BASE+'/transaction.json')!=null,id
  check('failed_apply_retains_user_domains','during-health.example' in l.dex('uci','get','podkop.main.user_domains').stdout)
  # Unknown transaction marker never triggers blind legacy restore.
  l.write('/etc/podkop-tools/transaction.json','{"started":1}');finger=l.fingerprint();oldpid=l.pid()
- check('unknown_transaction_blocks',l.task('fetch',check=False).get('error')=='recovery_conflict')
+ check('unknown_transaction_blocks_staging',fetch_without_staging('recovery_required'))
+ check('unknown_transaction_marker_preserved',read('/etc/podkop-tools/transaction.json')=={'started':1})
  check('unknown_transaction_does_not_reload',l.fingerprint()==finger and l.pid()==oldpid)
  l.dex('rm','/etc/podkop-tools/transaction.json')
  # Use the real preapply anchor to prove a legacy hash transition with independent edits.

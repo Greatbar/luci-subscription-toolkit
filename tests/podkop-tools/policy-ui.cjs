@@ -25,27 +25,26 @@ function harness() {
 }
 (async () => {
   const h = harness(), v = h.load('dashboard'), tree = v.render(await v.load());
-  assert.ok(text(tree).includes('Предпочтительный сервер:'));
+  assert.ok(text(tree).includes('Предпочтительный сервер Предпочтение'));
   assert.ok(text(tree).includes('Нет ответа активного сервера'));
   assert.ok(text(tree).includes('Проверка резервов'));
   h.state.antigravity = { mode: 'selector', selected_id: h.b, reason: 'node_removed' };
   v.redraw(h.state);
-  assert.ok(text(tree).replace(/\s+/g, ' ').includes('Antigravity: <script>bad</script>'));
+  assert.ok(text(tree).replace(/\s+/g, ' ').includes('Antigravity <script>bad</script>'));
   assert.ok(text(tree).includes('Сервер удалён из подписки'));
   const probeHarness = harness(), probeView = probeHarness.load('dashboard');
   probeHarness.state.control = {ok: null, at: 1700000000, failures: 0};
   assert.ok(text(probeView.render(await probeView.load())).includes('Неизвестно'));
   probeHarness.state.control.ok = true;
-  assert.ok(text(probeView.render(await probeView.load())).includes('Получен HTTPS-ответ'));
+  assert.ok(text(probeView.render(await probeView.load())).includes('Ответ сайта Получен'));
   assert.equal(h.requests.filter(r => r.method === 'statistics').length, 0);
   const panel = walk(tree).find(n => n.tag === 'details' && text(n.children[0]) === 'Статистика HTTPS');
   assert.ok(panel);
   await panel.attrs.toggle({ target: { open: true } });
   assert.deepEqual(h.requests.at(-1), { method: 'statistics', args: [h.a, '24h'] });
   assert.ok(text(tree).includes('75 %'));
-  assert.ok(text(tree).includes('Проб: 4'));
-  assert.ok(text(tree).includes('Нет проб'));
-  assert.ok(text(tree).includes('разрывы'));
+  assert.ok(text(tree).includes('Успешных проб: 3 из 4'));
+  assert.ok(text(tree).includes('Часы без проб не входят в расчёт доступности'));
   assert.equal(walk(tree).filter(n => n.tag === 'svg').length, 3);
   assert.ok(walk(tree).filter(n => n.tag === 'svg').every(n => n.ns === 'http://www.w3.org/2000/svg'));
   // The two populated hours have a gap; no graph line bridges it.

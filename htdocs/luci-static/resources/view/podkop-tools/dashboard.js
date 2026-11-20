@@ -20,7 +20,8 @@ function policyLabel(value) {
     return ({manual:'Выбор пользователя', selected:'Выбор пользователя', external:'Выбор в Podkop', migrated:'Принят при обновлении',
         active_unavailable:'Нет ответа активного сервера', boot_adopted_unknown:'Принят при загрузке', outage:'Восстановление после отказа', failback:'Возврат на основной',
         profile_update:'Обновление адреса сервера', latency:'Высокая задержка', applied:'Применение подписки', recovered:'Обновление профиля', rolled_back:'Откат',
-        confirm:'Подтверждение отказа', fetch:'Обновление подписки', same:'Проверка нового адреса', reserves:'Проверка резервов', node_removed:'Сервер удалён из подписки'})[value] || '—';
+        confirm:'Подтверждение отказа', fetch:'Обновление подписки', same:'Проверка нового адреса', reserves:'Проверка резервов',
+        node_removed:'Сервер удалён из подписки'})[value] || '—';
 }
 const capabilityNames = { fetch: 'Загрузка подписки', monitoring: 'Мониторинг', selector: 'Selector',
     switch: 'Переключение', apply: 'Применение', rollback: 'Откат', recovery: 'Восстановление', measurement: 'Измерения' };
@@ -43,19 +44,55 @@ function timestamp(value, compact) {
         { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' } : undefined) : '—';
 }
 function number(value) { return value.toLocaleString('ru-RU', { maximumFractionDigits: 1 }); }
+function latencyBadge(value) {
+    const level = value <= 150 ? 'low' : value <= 300 ? 'medium' : 'high';
+    return E('span', { 'class': 'stk-latency stk-latency-' + level }, [
+        E('span', { 'class': 'stk-latency-indicator', 'aria-hidden': 'true' }),
+        number(value) + ' мс'
+    ]);
+}
 function button(label, click, disabled) {
     return E('button', { 'type': 'button', 'class': 'cbi-button cbi-button-action',
-        disabled: disabled ? true : null, click }, label);
+        disabled: disabled ? true : null, click }, [label]);
 }
-function flag(name) {
-    if (/[\u{1F1E6}-\u{1F1FF}]{2}/u.test(name)) return '';
-    const countries = { 'Латвия': '🇱🇻', 'Швеция': '🇸🇪', 'Германия': '🇩🇪', 'Нидерланды': '🇳🇱',
-        'Финляндия': '🇫🇮', 'Франция': '🇫🇷', 'США': '🇺🇸', 'Великобритания': '🇬🇧',
-        'Польша': '🇵🇱', 'Эстония': '🇪🇪', 'Литва': '🇱🇹', 'Россия': '🇷🇺', 'Турция': '🇹🇷', 'Япония': '🇯🇵' };
-    const country = Object.keys(countries).find(country => name.includes(country));
-    return country ? countries[country] + ' ' : '🌐 ';
+function field(label, value) {
+    return E('div', {}, [E('dt', {}, [label]), E('dd', {}, [value])]);
 }
-
+function detailFields(rows) {
+    return E('dl', { 'class': 'stk-detail-fields' }, rows
+        .filter(([, value]) => value != null && value !== '')
+        .map(([label, value]) => field(label, value)));
+}
+function diagnosticCard(title, rows, note) {
+    return E('section', { 'class': 'stk-card' }, [
+        E('h4', {}, [title]), detailFields(rows), ...(note ? [E('p', { 'class': 'stk-note' }, [note])] : [])
+    ]);
+}
+const measurementErrors = {
+    latency_failed: 'Замер не удался',
+    speed_failed: 'Не удалось измерить скорость',
+    speed_cooldown: 'Между замерами нужна пауза в минуту',
+    router_busy: 'Роутер выполняет другое задание',
+    probe_start_failed: 'Не удалось запустить проверку',
+    unexpected_http_status: 'Неожиданный код HTTP',
+    transfer_failed: 'Не удалось скачать данные',
+    invalid_sample: 'Некорректная выборка',
+    insufficient_sample: 'Недостаточно данных для замера',
+    service_tls_failed: 'Не удалось проверить TLS',
+    service_timeout: 'Сайт не ответил вовремя',
+    service_unexpected_http_status: 'Неожиданный код HTTP',
+    service_response_too_large: 'Ответ сайта слишком большой',
+    service_transfer_failed: 'Не удалось получить ответ сайта',
+    service_content_type_mismatch: 'Неожиданный тип содержимого',
+    service_content_mismatch: 'В ответе нет ожидаемого содержимого',
+    service_block_page: 'Сайт вернул страницу блокировки',
+    service_invalid_contract: 'Некорректные параметры проверки',
+    service_probe_failed: 'Не удалось проверить сайт'
+};
+function diagnosticError(code) {
+    if (Object.hasOwn(compatibilityReasons, code)) return compatibilityReasons[code];
+    return Object.hasOwn(measurementErrors, code) ? measurementErrors[code] : code;
+}
 const statistics = rpc.declare({ object: 'podkop-tools', method: 'statistics', params: ['id', 'period'], expect: {} });
 const periods = { '24h': 24, '7d': 168, '30d': 720 };
 function count(value) { return Number.isSafeInteger(value) && value >= 0 ? value : null; }
@@ -111,9 +148,11 @@ function historyChart(title, rows, series, start, end, fixedMax) {
         });
         flush();
     });
-    return E('figure', { style: 'margin:12px 0' }, [E('figcaption', {}, title + ' · ' + series.map(line => line.label).join(' / ')),
+    return E('figure', { style: 'margin:12px 0' }, [
+        E('figcaption', {}, title),
         svgElement('svg', { viewBox: '0 0 ' + width + ' ' + height, role: 'img', 'aria-label': title, style: 'width:100%;max-width:900px;height:auto' }, elements),
-        E('p', {}, series.map(line => E('span', { style: 'color:' + line.color + ';margin-right:16px' }, line.label)))]);
+        ...(series.length > 1 ? [E('p', {}, series.map(line => E('span', { style: 'color:' + line.color + ';margin-right:16px' }, line.label)))] : [])
+    ]);
 }
 
 return view.extend({
@@ -152,7 +191,7 @@ return view.extend({
         const controls = E('div', { 'class': 'stk-controls' }, [
             E('label', {}, ['Сервер: ', E('select', { 'aria-label': 'Сервер статистики', change: event => {
                 this.statisticsId = event.target.value; return this.loadStatistics();
-            } }, nodes.map(n => E('option', { value: n.id, selected: n.id === this.statisticsId ? true : null }, n.name)))]),
+            } }, nodes.map(n => E('option', { value: n.id, selected: n.id === this.statisticsId ? true : null }, [n.name])))]),
             E('label', {}, ['Период: ', E('select', { 'aria-label': 'Период статистики', change: event => {
                 if (!periods[event.target.value]) return;
                 this.statisticsPeriod = event.target.value; return this.loadStatistics();
@@ -161,27 +200,27 @@ return view.extend({
         let body = [];
         if (this.openDetails.statistics) {
             if (this.statisticsLoading) body = [E('p', { role: 'status' }, 'Загрузка статистики…')];
-            else if (this.statisticsError) body = [E('p', { role: 'status' }, 'Не удалось загрузить статистику. Измените сервер или период для повторной попытки.')];
+            else if (this.statisticsError) body = [E('p', { role: 'status' }, 'Не удалось загрузить статистику. Смените сервер или период.')];
             else if (!rows.length || !totals.attempts && !totals.switches && !totals.failures) body = [E('p', {}, 'Нет проб за выбранный период')];
             else {
                 const delay = (row, kind) => row.successes > 0 && metric(row.delay_sum) !== null && metric(row.delay_min) !== null &&
                     metric(row.delay_max) !== null && row.delay_min <= row.delay_max ?
                     (kind === 'avg' ? row.delay_sum / (count(row.delay_count) === null ? row.successes : row.delay_count || 1) : row['delay_' + kind]) : null;
                 body = [
-                    E('p', {}, 'Проб: ' + number(totals.attempts) + ' · Успешных: ' + number(totals.successes) +
-                        ' · Доступность по пробам: ' + (totals.attempts ? number(totals.successes / totals.attempts * 100) + ' %' : '—') +
-                        ' · Ошибок: ' + number(totals.failures) + ' · Переключений: ' + number(totals.switches)),
-                    E('p', {}, 'Фактическое покрытие: ' + sampled.length + ' из ' + periods[period] + ' часовых интервалов' +
-                        (sampled.length ? ' · Первая проба: ' + timestamp(sampled[0].hour) + ' · Последний час с пробами: ' + timestamp(sampled[sampled.length - 1].hour) : '') +
-                        (data && metric(data.coverage_start) !== null ? ' · История с: ' + timestamp(data.coverage_start) : '') +
-                        (data && data.truncated ? ' · История ограничена лимитом хранения' : '')),
-                    E('p', {}, 'Нет проб: разрывы и серые отметки. Час без проб не считается ни успешным, ни отказавшим; линии не соединяют пропуски.'),
+                    E('p', {}, 'Успешных проб: ' + number(totals.successes) + ' из ' + number(totals.attempts) +
+                        (totals.attempts ? ' (' + number(totals.successes / totals.attempts * 100) + ' %)' : '') +
+                        '. Ошибок: ' + number(totals.failures) + '. Переключений: ' + number(totals.switches) + '.'),
+                    E('p', {}, 'Часов с пробами: ' + sampled.length + ' из ' + periods[period] + '.' +
+                        (sampled.length ? ' Первый час с пробами: ' + timestamp(sampled[0].hour) + '. Последний: ' + timestamp(sampled[sampled.length - 1].hour) + '.' : '') +
+                        (data && metric(data.coverage_start) !== null ? ' История с: ' + timestamp(data.coverage_start) + '.' : '') +
+                        (data && data.truncated ? ' История неполная.' : '')),
+                    E('p', {}, 'Часы без проб не входят в расчёт доступности и отмечены серым.'),
                     historyChart('Доступность по HTTPS-пробам, %', rows, [{ label: 'Успешные пробы, %', color: '#198754', value: row => row.attempts ? row.successes / row.attempts * 100 : null }], start, end, 100),
                     historyChart('Задержка успешных HTTPS-проб, мс', rows, [
                         { label: 'Средняя', color: '#287ac1', value: row => delay(row, 'avg') },
                         { label: 'Минимум', color: '#198754', value: row => delay(row, 'min') },
                         { label: 'Максимум', color: '#b56a00', value: row => delay(row, 'max') }], start, end),
-                    historyChart('Ошибки проб и переключения, количество', rows, [
+                    historyChart('Ошибки проб и переключения', rows, [
                         { label: 'Ошибки', color: '#c43b3b', value: row => row.attempts || row.switches || row.failures ? row.failures : null },
                         { label: 'Переключения', color: '#8051b0', value: row => row.attempts || row.switches || row.failures ? row.switches : null }], start, end)
                 ];
@@ -191,32 +230,82 @@ return view.extend({
             const changed = this.openDetails.statistics !== event.target.open;
             this.openDetails.statistics = event.target.open;
             if (changed && event.target.open) return this.loadStatistics();
-        } }, [E('summary', {}, 'Статистика HTTPS'), controls,
-            E('p', {}, 'Выборочная доступность контрольного HTTPS endpoint. Не подтверждает работу приложений, сообщений или звонков. Статистика загружается при открытии и смене выбора.')].concat(body));
+        } }, [E('summary', {}, 'Статистика HTTPS'), controls].concat(body));
+    },
+    routingPanel: function(s, seedDisabled) {
+        const control = s.control, recovery = s.recovery, policy = s.policy;
+        const applyIssue = s.last_apply_error || s.apply_blocked_reason;
+        const path = { system: 'Системное подключение', direct: 'Изолированное прямое подключение',
+            saved_server: 'Сохранённый сервер подписки' }[s.fetch_path];
+        return this.details('page', 'Подписка и маршрутизация', [
+            E('div', { 'class': 'stk-grid stk-diagnostic-grid' }, [
+                diagnosticCard('Подписка', [
+                    ['Путь загрузки', path],
+                    ['Последнее применение', s.last_apply ? timestamp(s.last_apply) : null],
+                    ['Попытка применения', s.last_apply_attempt ? timestamp(s.last_apply_attempt) : null],
+                    ['Причина', applyIssue !== s.fetch_stage_error ? diagnosticError(applyIssue) : null],
+                    ['Ошибка загрузки', diagnosticError(s.fetch_error)],
+                    ['Кандидат', s.pending_stale ? 'Устарел' : s.pending ? 'Ожидает применения' : 'Нет']
+                ]),
+                diagnosticCard('Маршрутизация', [
+                    ['Источник выбора', policyLabel(s.selection_origin)],
+                    ['Причина переключения', policyLabel(s.last_switch_reason)],
+                    ['По задержке', policy?.latency_enabled ? 'Включено' : 'Выключено'],
+                    ['Пауза до', policy?.latency_enabled && policy.cooldown_until ? timestamp(policy.cooldown_until) : null],
+                    ['Восстановление', recovery?.stage ? policyLabel(recovery.stage) : null],
+                    ['Позиция', recovery?.cursor]
+                ]),
+                diagnosticCard('Контроль HTTPS', [
+                    ['Ответ сайта', control ? (control.ok === true ? 'Получен' : control.ok === false ? 'Нет ответа' : 'Неизвестно') : 'Не проверен'],
+                    ['Время пробы', control?.at ? timestamp(control.at) : null],
+                    ['Неудачные пробы', control?.failures]
+                ])
+            ]),
+            this.details('routing-technical', 'Технические данные', [
+                detailFields([
+                    ['Код состояния', s.state || 'Не инициализировано'],
+                    ['Ошибка', diagnosticError(s.error)],
+                    ['Код ошибки применения', applyIssue && applyIssue === s.fetch_stage_error ? applyIssue : null],
+                    ['Задание', s.busy ? 'Выполняется' : null],
+                    ['Пауза до', !policy?.latency_enabled && policy?.cooldown_until ? timestamp(policy.cooldown_until) : null],
+                    ['Версия кандидата', s.pending_version],
+                    ['Кандидат получен', s.pending_version_at ? timestamp(s.pending_version_at) : null],
+                    ['Кандидат проверен', s.pending_verified_at ? timestamp(s.pending_verified_at) : null],
+                    ['Начало ожидания', s.pending_series_started_at ? timestamp(s.pending_series_started_at) : null],
+                    ['Ожидание до', s.pending_deadline_at ? timestamp(s.pending_deadline_at) : null]
+                ]),
+                E('p', { 'class': 'stk-note' }, 'Замеры хранятся в оперативной памяти и используют принятые профили.')
+            ]),
+            E('div', { 'class': 'stk-buttons stk-diagnostic-action' }, [
+                button('Прочитать текущий MAIN', () => this.operation('seed'), seedDisabled)
+            ])
+        ]);
     },
     compatibilityPanel: function(s) {
         const compatibility = s.compatibility;
-        if (!compatibility) return E('div');
+        if (!compatibility) return null;
         const versions = compatibility.versions || {}, capabilities = compatibility.capabilities || {};
-        return E('section', { 'class': 'cbi-section stk-panel stk-section', 'aria-label': 'Совместимость' }, [
-            E('h3', {}, 'Совместимость'),
-            E('p', {}, 'OpenWrt: ' + (versions.openwrt || 'не определена') + ' · Podkop: ' +
-                (versions.podkop || 'не определена') + ' · sing-box: ' + (versions.sing_box || 'не определена')),
-            ...((compatibility.warnings || []).includes('untested_versions') ? [E('p', { role: 'status' },
-                'Эта связка версий не проверена. Это предупреждение не блокирует работу.')] : []),
-            ...(s.fetch_stage_error ? [E('p', { role: 'status' }, 'Подписка загружена: ' + (count(s.downloaded_count) ?? '—') +
-                ' серверов. Подготовка применения: ' + compatibilityReason(s.fetch_stage_error) + '.')] : []),
-            E('ul', {}, Object.keys(capabilityNames).map(name => {
-                const capability = capabilities[name];
-                return E('li', {}, capabilityNames[name] + ': ' + (capability?.available === false ?
-                    'недоступно — ' + compatibilityReason(capability.reason) : capability?.available === true ?
-                    'предварительно доступно' : 'не проверено'));
-            })),
-            E('p', {}, 'Показаны предварительные проверки возможностей. Окончательная проверка выполняется при операции; применение проверяет конфигурацию перед изменением MAIN.')
+        const operations = Object.entries(capabilityNames);
+        const available = operations.filter(([key]) => capabilities[key]?.available === true).map(([, label]) => label);
+        const unchecked = operations.filter(([key]) => capabilities[key]?.available == null).map(([, label]) => label);
+        const blocked = operations.filter(([key]) => capabilities[key]?.available === false);
+        return this.details('compatibility', 'Совместимость', [
+            E('div', { 'class': 'stk-grid stk-diagnostic-grid' }, [
+                diagnosticCard('Версии', [
+                    ['OpenWrt', versions.openwrt || 'Не определена'],
+                    ['Podkop', versions.podkop || 'Не определена'],
+                    ['sing-box', versions.sing_box || 'Не определена']
+                ], compatibility.warnings?.includes('untested_versions') ? 'Эта связка версий не проверена.' : null),
+                diagnosticCard('Проверка операций', [
+                    ['Предварительно доступны', available.length === operations.length ? 'Все операции' : available.join(', ')],
+                    ['Не проверены', unchecked.join(', ')],
+                    ...blocked.map(([key, label]) => [label, 'Недоступно. ' + compatibilityReason(capabilities[key].reason)])
+                ])
+            ])
         ]);
     },
     selectedTests: function() { return Object.keys(labels).filter(kind => this.tests[kind]); },
-    notify: function(message) { ui.addNotification(null, E('p', {}, message), 'warning'); },
+    notify: function(message) { ui.addNotification(null, E('p', {}, [message]), 'warning'); },
     operation: async function(kind, arg) {
         if (this.running || this.localBusy || this.state.busy || !this.canWrite || capabilityBlocked(this.state, operationCapability(kind))) return;
         this.localBusy = true; this.redraw();
@@ -232,7 +321,7 @@ return view.extend({
     },
     confirmApply: function(version) {
         ui.showModal('Применить подписку?', [
-            E('p', {}, 'Podkop выполнит reload sing-box. Текущие соединения могут кратко прерваться.'),
+            E('p', {}, 'Podkop может перечитать конфигурацию sing-box. Соединения могут ненадолго прерваться.'),
             E('div', { 'class': 'stk-buttons right' }, [button('Отмена', ui.hideModal),
                 button('Применить', () => { ui.hideModal(); return this.operation('apply', version); })])
         ]);
@@ -241,12 +330,12 @@ return view.extend({
         if (!ids.length || !kinds.length || this.running || this.localBusy || this.state.busy || !this.canWrite || capabilityBlocked(this.state, 'measurement')) return;
         const cap = this.state.speed_bytes;
         if (kinds.includes('speed')) {
-            if (!Number.isFinite(cap)) { this.notify('Лимит скорости неизвестен. Обновите список.'); return; }
+            if (!Number.isFinite(cap)) { this.notify('Лимит трафика неизвестен. Обновите список.'); return; }
             this.localBusy = true; this.redraw();
             const cancel = () => { ui.hideModal(); this.localBusy = false; this.redraw(); };
             ui.showModal('Запустить проверку скорости?', [
-                E('p', {}, 'До ' + number(Math.ceil(ids.length * cap / 1048576 * 10) / 10) + ' МиБ только для speed-тестов (' +
-                    ids.length + ' × ' + number(Math.ceil(cap / 1048576 * 10) / 10) + ' МиБ). Скорость измеряется по одному серверу; лёгкие проверки выполняются параллельно.'),
+                E('p', {}, 'До ' + number(Math.ceil(ids.length * cap / 1048576 * 10) / 10) + ' МиБ на проверку скорости (' +
+                    ids.length + ' × ' + number(Math.ceil(cap / 1048576 * 10) / 10) + ' МиБ). Скорость проверяется по одному серверу.'),
                 E('div', { 'class': 'stk-buttons right' }, [button('Отмена', cancel), button('Запустить', () => {
                     cancel(); return this.runTests(ids, kinds, cap);
                 })])
@@ -256,17 +345,66 @@ return view.extend({
         return this.runTests(ids, kinds);
     },
     stopTests: function() { this.stopping = true; this.redraw(); },
+    latencyCell: function(id, test) {
+        if (this.running && this.latencyIds.has(id)) {
+            const receipt = this.state.batch;
+            if (!this.batchToken || !receipt || receipt.token !== this.batchToken) return 'Проверяется…';
+            if (receipt.latency) {
+                if (!Object.prototype.hasOwnProperty.call(receipt.latency, id)) return 'Проверяется…';
+                const value = receipt.latency[id];
+                return value == null ? 'Замер не удался' : latencyBadge(value);
+            }
+        }
+        if (test.latency_stale && (test.latency_at || test.latency != null)) return 'Устарела';
+        if (test.latency != null) return latencyBadge(test.latency);
+        return test.latency_error ? 'Замер не удался' : '—';
+    },
+    serverDetails: function(id, test, serviceName) {
+        const service = test.service;
+        const failures = Object.entries(this.failures[id] || {});
+        const hasLatency = test.latency_at || test.latency_error;
+        const hasSpeed = test.at || test.error || test.bytes != null || test.seconds != null;
+        const groups = [
+            ...(hasLatency ? [diagnosticCard('Задержка', [
+                [test.latency_stale ? 'Прежний замер' : 'Время', test.latency_at ? timestamp(test.latency_at, true) : null],
+                ['Ошибка', diagnosticError(test.latency_error)]
+            ])] : []),
+            ...(service ? [diagnosticCard(serviceName, [
+                [service.stale ? 'Прежняя проверка' : 'Время', service.at ? timestamp(service.at, true) : null],
+                ['HTTP', service.http_status],
+                ['Ответ', service.bytes != null ? number(service.bytes / 1024) + ' КиБ' : null],
+                ['TLS', service.tls_verified ? 'Проверен' : 'Нет подтверждения'],
+                ['Ошибка', diagnosticError(service.error)]
+            ])] : []),
+            ...(hasSpeed ? [diagnosticCard('Скорость', [
+                [test.speed_stale ? 'Прежний замер' : 'Время', test.at ? timestamp(test.at, true) : null],
+                ['Объём', test.bytes != null ? number(test.bytes / 1048576) + ' МиБ' : null],
+                ['Длительность', test.seconds != null ? number(test.seconds) + ' с' : null],
+                ['Выборка', test.short_sample ? 'Короткая' : null],
+                ['Ошибка', diagnosticError(test.error)]
+            ])] : []),
+            ...(failures.length ? [diagnosticCard('Ошибки запуска', failures.map(([kind, code]) =>
+                [kind === 'service' ? serviceName : labels[kind], diagnosticError(code)]))] : [])
+        ];
+        return this.details(id, 'Подробности', [
+            groups.length ? E('div', { 'class': 'stk-server-diagnostics' }, groups) :
+                E('p', { 'class': 'stk-note' }, 'Нет подробностей о замерах.'),
+            detailFields([['ID сервера', E('code', {}, [id])]])
+        ]);
+    },
     runTests: async function(ids, kinds, cap) {
         if (this.running || this.localBusy || !this.canWrite || capabilityBlocked(this.state, 'measurement')) return;
         this.running = true; this.stopping = false;
-        this.progress = { done: 0, total: ids.length, message: kinds.map(k => k === 'service' ? this.state.service_name || labels[k] : labels[k]).join(' · ') };
+        this.batchToken = null;
+        this.latencyIds = new Set(kinds.includes('latency') ? ids : []);
+        this.progress = { done: 0, total: ids.length, message: kinds.map(kind => kind === 'service' ? this.state.service_name || labels[kind] : labels[kind]).join(', ') };
         this.redraw();
         let message = 'Проверка завершена', cancelSent = false;
         try {
             const s = await this.refresh();
             if (capabilityBlocked(s, 'measurement')) throw new Error(compatibilityReason(s.compatibility.capabilities.measurement.reason));
             if (s.busy) throw new Error('Роутер выполняет другое задание');
-            if (kinds.includes('speed') && s.speed_bytes !== cap) throw new Error('Лимит трафика изменился; подтвердите запуск заново');
+            if (kinds.includes('speed') && s.speed_bytes !== cap) throw new Error('Лимит трафика изменился. Подтвердите запуск заново.');
             if (this.stopping || this.container && this.container.isConnected === false) {
                 message = 'Проверка остановлена'; return;
             }
@@ -275,7 +413,8 @@ return view.extend({
             if (result.ok === false) throw new Error(result.error || 'Операция отклонена');
             const deadline = Date.now() + 250000;
             while (Date.now() < deadline) {
-                const current = await this.refresh(), receipt = current.batch;
+                const current = await status(this.batchToken), receipt = current.batch;
+                this.state = current;
                 if (this.container && this.container.isConnected === false) this.stopping = true;
                 if (receipt && receipt.token === this.batchToken) {
                     this.progress.done = receipt.done || 0;
@@ -291,104 +430,182 @@ return view.extend({
                                 else if (receipt.state === 'finished') delete this.failures[id][kind];
                             }
                         }
-                        message = receipt.state === 'cancelled' ? 'Проверка остановлена' : receipt.state === 'failed' ? 'Проверка не завершена · ' + (receipt.error || 'Ошибка задания') : 'Проверка завершена';
+                        message = receipt.state === 'cancelled' ? 'Проверка остановлена' : receipt.state === 'failed' ? 'Проверка не завершена. ' + (receipt.error || 'Ошибка задания') : 'Проверка завершена';
                         return;
                     }
                 }
                 this.redraw();
                 await new Promise(resolve => setTimeout(resolve, 1000));
             }
-            message = 'Не удалось подтвердить завершение; обновите список';
-        } catch (error) { message = error.message || 'Связь потеряна; обновите список'; }
+            message = 'Не удалось подтвердить завершение. Обновите список.';
+        } catch (error) { message = error.message || 'Связь потеряна. Обновите список.'; }
         finally { this.running = false; this.progress.message = message; this.redraw(); }
     },
     content: function(s) {
         const disabled = !!s.busy || !this.canWrite || this.running || this.localBusy;
         const unavailable = capability => disabled || capabilityBlocked(s, capability);
         const nodes = s.nodes || [], active = nodes.find(n => n.selected), preferred = nodes.find(n => n.id === s.preferred_id), serviceName = s.service_name || 'Telegram Web';
-        const rows = nodes.map(n => {
+        const cards = nodes.map(n => {
             const t = n.test || {}, service = t.service;
             const times = [!t.latency_stale && t.latency_at, service && !service.stale && service.at, !t.speed_stale && t.at].filter(Boolean);
-            const details = this.details(n.id, 'Подробности', [
-                E('p', {}, 'Stable ID: ' + n.id),
-                E('p', {}, 'Задержка: ' + timestamp(t.latency_at) + ' · ' + (t.latency_error || '—') + (t.latency_stale ? ' · Устарела' : '')),
-                E('p', {}, serviceName + ': ' + timestamp(service && service.at) + ' · ' + (service && service.error || '—') +
-                    ' · HTTP ' + (service && service.http_status || '—') + (service && service.stale ? ' · Устарел' : '') +
-                    ' · ' + (service && service.bytes != null ? number(service.bytes / 1024) + ' КиБ' : '—') + ' · TLS: ' + (service && service.tls_verified ? 'проверен' : '—')),
-                E('p', {}, 'Скорость: ' + timestamp(t.at) + ' · ' + (t.error || '—') + (t.speed_stale ? ' · Устарела' : '') +
-                    ' · ' + (t.bytes != null ? number(t.bytes / 1048576) + ' МиБ' : '—') + ' / ' + (t.seconds != null ? number(t.seconds) + ' с' : '—') + (t.short_sample ? ' · короткая выборка' : '')),
-                E('p', {}, 'Последний запуск: ' + (Object.keys(this.failures[n.id] || {}).map(kind => labels[kind] + ': ' + this.failures[n.id][kind]).join(' · ') || '—'))
-            ]);
-            const more = this.details('more-' + n.id, 'Ещё', [E('div', { 'class': 'stk-buttons' },
+            const details = this.serverDetails(n.id, t, serviceName);
+            const more = this.details('more-' + n.id, 'Отдельные проверки', [E('div', { 'class': 'stk-buttons stk-individual-tests' },
                 Object.keys(labels).map(kind => button(kind === 'service' ? serviceName : labels[kind], () => this.startTests([n.id], [kind]), unavailable('measurement'))))]);
-            return E('tr', { 'class': 'tr' + (n.selected ? ' active' : '') }, [
-                E('td', { 'class': 'td' }, [E(n.selected ? 'strong' : 'span', {}, flag(n.name) + n.name), details]),
-                E('td', { 'class': 'td' }, [n.selected ? 'Активный' : '', n.id === s.preferred_id ? ' · Предпочтительный' : ''].join('') || '—'),
-                E('td', { 'class': 'td' }, t.latency_stale && (t.latency_at || t.latency != null) ? 'Устарела' : t.latency != null ? t.latency + ' мс' : '—'),
-                E('td', { 'class': 'td' }, service && service.stale ? 'Устарел' : service ? (service.ok ? 'Доступен' : 'Недоступен') : 'Не проверен'),
-                E('td', { 'class': 'td' }, t.speed_stale && (t.at || t.mbps != null) ? 'Устарела' : t.mbps != null ? number(t.mbps) + ' Мбит/с' + (t.short_sample ? ' · короткая выборка' : '') : '—'),
-                E('td', { 'class': 'td', title: 'Последняя актуальная проверка; время каждого теста — в подробностях' }, timestamp(times.length ? Math.max.apply(null, times) : null, true)),
-                E('td', { 'class': 'td' }, E('div', { 'class': 'stk-buttons' }, [
+            const roles = [n.selected && 'Активный', n.id === s.preferred_id && 'Предпочтительный'].filter(Boolean);
+            return E('article', { 'class': 'stk-card stk-server' + (n.selected ? ' stk-server-active' : '') }, [
+                E('h4', {}, [n.name]),
+                ...(roles.length ? [E('p', { 'class': 'stk-server-role' }, roles.join(', '))] : []),
+                E('dl', { 'class': 'stk-metrics' }, [
+                    field('Задержка', this.latencyCell(n.id, t)),
+                    field(serviceName, service && service.stale ? 'Устарел' : service ? (service.ok ? 'Доступен' : 'Недоступен') : 'Не проверен'),
+                    field('Скорость', t.speed_stale && (t.at || t.mbps != null) ? 'Устарела' :
+                        t.mbps != null ? number(t.mbps) + ' Мбит/с' + (t.short_sample ? ' (короткая выборка)' : '') : '—'),
+                    ...(times.length ? [field('Проверено', timestamp(Math.max.apply(null, times), true))] : [])
+                ]),
+                E('div', { 'class': 'stk-buttons stk-server-actions' }, [
                     button('Выбрать', () => this.operation('select', n.id), unavailable('switch') || n.selected && n.id === s.preferred_id),
-                    button('Тест', () => this.startTests([n.id], this.selectedTests()), unavailable('measurement') || !this.selectedTests().length), more
-                ]))
+                    button('Проверить', () => this.startTests([n.id], this.selectedTests()), unavailable('measurement') || !this.selectedTests().length)
+                ]),
+                E('div', { 'class': 'stk-server-links' }, [details, more])
             ]);
         });
         return E('div', { 'class': 'stk-dashboard' }, [
-            E('style', {}, '.stk-dashboard .stk-section{margin-bottom:20px}.stk-dashboard .stk-panel{padding:14px}.stk-dashboard .stk-controls,.stk-dashboard .stk-buttons,.stk-dashboard .stk-summary{display:flex;flex-wrap:wrap;align-items:center;gap:8px}.stk-dashboard .stk-summary{gap:8px 24px;margin-bottom:12px}.stk-dashboard .stk-controls{gap:12px 16px}.stk-dashboard label{display:inline-flex;align-items:center;gap:6px}.stk-dashboard .stk-table{overflow-x:auto}.stk-dashboard table{min-width:780px}.stk-dashboard .stk-table .table{display:table!important}.stk-dashboard .stk-table .tr{display:table-row!important}.stk-dashboard .stk-table .th,.stk-dashboard .stk-table .td{display:table-cell!important}.stk-dashboard .stk-table .tr::before,.stk-dashboard .stk-table .td::before{display:none!important}.stk-dashboard .td,.stk-dashboard .th{text-align:left;vertical-align:top;padding:10px 8px}.stk-dashboard details{overflow-wrap:anywhere}.stk-dashboard details p{margin:8px 0}.stk-dashboard summary{cursor:pointer}.stk-dashboard td details{margin-top:6px}.stk-dashboard .stk-progress{margin:12px 0 0}.stk-dashboard .stk-buttons .cbi-button{margin:0}'),
+            E('style', {}, `
+                .stk-dashboard { --stk-border: color-mix(in srgb, currentColor 23%, transparent); }
+                .stk-dashboard .stk-section { margin-bottom: 18px; }
+                .stk-dashboard .stk-panel { padding: 14px; }
+                .stk-dashboard .stk-controls, .stk-dashboard .stk-buttons, .stk-dashboard .stk-server-header {
+                    display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+                }
+                .stk-dashboard .stk-controls { gap: 12px 16px; }
+                .stk-dashboard label { display: inline-flex; align-items: center; gap: 6px; }
+                .stk-dashboard .stk-buttons .cbi-button { margin: 0; }
+                .stk-dashboard .stk-grid {
+                    display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 15rem), 1fr)); gap: 10px;
+                }
+                .stk-dashboard .stk-summary {
+                    grid-template-columns: repeat(auto-fit, minmax(min(100%, 9rem), 1fr)); margin-bottom: 12px;
+                }
+                .stk-dashboard .stk-summary dd { margin: 4px 0 0; }
+                .stk-dashboard .stk-servers { margin-top: 12px; }
+                .stk-dashboard .stk-servers:has(.stk-server-links details[open]) { align-items: start; }
+                .stk-dashboard .stk-card {
+                    min-width: 0; padding: 12px; border: 1px solid var(--stk-border); border-radius: 6px;
+                    background: color-mix(in srgb, currentColor 3%, transparent); overflow-wrap: anywhere;
+                }
+                .stk-dashboard .stk-card h4, .stk-dashboard .stk-server-header h3 {
+                    margin: 0; color: inherit; letter-spacing: normal; text-transform: none;
+                }
+                .stk-dashboard .stk-card h4 { font-size: 1rem; line-height: 1.35; }
+                .stk-dashboard .stk-server-header { justify-content: space-between; margin-bottom: 12px; }
+                .stk-dashboard .stk-server-heading { display: flex; align-items: baseline; gap: 8px; }
+                .stk-dashboard .stk-server-active { border-color: #22866e; box-shadow: inset 0 2px #22866e; }
+                .stk-dashboard .stk-server-role { font-size: .875rem; margin: 4px 0 0; }
+                .stk-dashboard .stk-metrics { display: grid; gap: 4px; margin: 8px 0 0; }
+                .stk-dashboard .stk-metrics > div { display: flex; justify-content: space-between; gap: 8px; }
+                .stk-dashboard .stk-metrics dt, .stk-dashboard .stk-metrics dd { margin: 0; }
+                .stk-dashboard .stk-metrics dt { font-weight: normal; }
+                .stk-dashboard .stk-metrics dd { min-width: 0; text-align: right; }
+                .stk-dashboard .stk-server-actions {
+                    margin-top: 10px; padding-top: 10px; border-top: 1px solid var(--stk-border);
+                }
+                .stk-dashboard .stk-server-links { display: flex; flex-wrap: wrap; column-gap: 14px; }
+                .stk-dashboard .stk-server-links details[open] { flex-basis: 100%; min-width: 0; }
+                .stk-dashboard .stk-disclosure-stack { display: grid; gap: 8px; margin-top: 12px; }
+                .stk-dashboard .stk-disclosure-stack > details, .stk-dashboard .stk-notice {
+                    margin: 0; padding: 10px 12px; border: 1px solid var(--stk-border); border-radius: 6px;
+                }
+                .stk-dashboard .stk-disclosure-stack > details > summary { font-weight: 600; }
+                .stk-dashboard .stk-notice { margin-top: 12px; border-inline-start: 3px solid #b8791b; }
+                .stk-dashboard .stk-notice p { margin: 4px 0 0; }
+                .stk-dashboard .stk-diagnostic-grid {
+                    grid-template-columns: repeat(auto-fit, minmax(min(100%, 15rem), 1fr)); margin-top: 10px;
+                }
+                .stk-dashboard .stk-detail-fields { display: grid; gap: 6px; margin: 8px 0 0; }
+                .stk-dashboard .stk-detail-fields > div {
+                    display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); gap: 8px;
+                }
+                .stk-dashboard .stk-detail-fields dt, .stk-dashboard .stk-detail-fields dd { margin: 0; }
+                .stk-dashboard .stk-detail-fields dt { font-weight: normal; }
+                .stk-dashboard .stk-detail-fields dd { text-align: right; }
+                .stk-dashboard .stk-detail-fields code { white-space: normal; }
+                .stk-dashboard .stk-diagnostic-action { margin-top: 12px; }
+                .stk-dashboard .stk-server-diagnostics, .stk-dashboard .stk-individual-tests { display: grid; gap: 6px; margin-top: 8px; }
+                .stk-dashboard .stk-individual-tests .cbi-button { white-space: normal; }
+                .stk-dashboard .stk-note { margin: 8px 0 0; }
+                .stk-dashboard details { overflow-wrap: anywhere; margin-top: 8px; }
+                .stk-dashboard details p { margin: 8px 0; }
+                .stk-dashboard summary { cursor: pointer; }
+                .stk-dashboard summary:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+                .stk-dashboard .stk-latency {
+                    display: inline-flex; align-items: center; gap: .45em; white-space: nowrap; font-variant-numeric: tabular-nums;
+                }
+                .stk-dashboard .stk-latency-indicator { width: .6em; height: .6em; border-radius: 50%; background: var(--stk-latency-color); }
+                .stk-dashboard .stk-latency-low { --stk-latency-color: #27a66c; }
+                .stk-dashboard .stk-latency-medium { --stk-latency-color: #c48120; }
+                .stk-dashboard .stk-latency-high { --stk-latency-color: #da5555; }
+                .stk-dashboard .stk-progress { margin: 0 0 12px; }
+                .stk-dashboard .stk-progress progress { display: block; width: min(100%, 24rem); height: .65rem; margin: .4em 0; }
+            `),
             E('h2', {}, 'Серверы и подписка'),
-            this.compatibilityPanel(s),
             E('section', { 'class': 'stk-section' }, [
-                E('div', { 'class': 'stk-summary' }, [
-                    E('span', {}, [E('strong', {}, 'Активный сервер: '), active ? active.name : '—']),
-                    E('span', {}, [E('strong', {}, 'Предпочтительный сервер: '), preferred ? preferred.name : s.preferred_id || '—']),
-                    E('span', {}, [E('strong', {}, 'Серверов: '), String(nodes.length)]),
-                    E('span', {}, [E('strong', {}, 'Подписка: '), timestamp(s.last_success)]),
-                    E('span', {}, [E('strong', {}, 'Обновления: '), s.pending ? 'ожидают применения' : 'нет']),
-                    E('span', {}, [E('strong', {}, 'Автоматизация: '), s.enabled ? 'включена' : 'выключена']),
-                    ...(s.antigravity ? [E('span', {}, [E('strong', {}, 'Antigravity: '),
-                        (nodes.find(n => n.id === s.antigravity.selected_id) || {}).name || '—',
-                        ' · ' + policyLabel(s.antigravity.reason)])] : [])
-                ]),
+                E('dl', { 'class': 'stk-summary stk-grid', 'aria-label': 'Сводка' }, [
+                    ['Активный сервер', active ? active.name : '—'],
+                    ['Предпочтительный сервер', preferred ? preferred.name : s.preferred_id || '—'],
+                    ['Подписка', s.pending ? 'Ожидает применения' : s.fetch_stage_error ? 'Нет готового обновления' : 'Нет изменений', timestamp(s.last_success)],
+                    ['Автоматизация', s.enabled ? 'Включена' : 'Выключена'],
+                    ...(s.antigravity ? [['Antigravity', nodes.find(n => n.id === s.antigravity.selected_id)?.name || '—',
+                        policyLabel(s.antigravity.reason)]] : [])
+                ].map(([label, value, note]) => E('div', { 'class': 'stk-card' }, [
+                    E('dt', {}, label),
+                    E('dd', {}, [
+                        E('strong', {}, [value]),
+                        ...(note && note !== '—' ? [E('div', {}, [note])] : [])
+                    ])
+                ]))),
                 E('div', { 'class': 'stk-buttons' }, [button('Обновить список', () => this.refresh().catch(() => this.notify('Не удалось обновить список')), this.running || this.localBusy),
                     button('Проверить подписку', () => this.operation('fetch'), unavailable('fetch'))
                 ].concat(s.pending ? [button('Применить изменения', () => this.confirmApply(s.pending_version), unavailable('apply') || s.pending_stale || !s.pending_version)] : [])),
-                this.details('page', 'Подробности', [
-                    E('p', {}, 'Состояние: ' + (s.state || 'не инициализировано') + ' · ' + (s.error || '—') + (s.busy ? ' · Выполняется задание' : '')),
-                    E('p', {}, 'Источник выбора: ' + policyLabel(s.selection_origin) + ' · Причина переключения: ' + policyLabel(s.last_switch_reason)),
-                    E('p', {}, 'Восстановление: ' + policyLabel(s.recovery && s.recovery.stage) + ' · Позиция: ' + (s.recovery && s.recovery.cursor != null ? s.recovery.cursor : '—')),
-                    E('p', {}, 'Переключение по задержке: ' + (s.policy && s.policy.latency_enabled ? 'включено' : 'выключено') + ' · Пауза до: ' + timestamp(s.policy && s.policy.cooldown_until)),
-                    E('p', {}, 'Ошибка подписки: ' + (s.fetch_error || '—') + ' · Применение: ' + timestamp(s.last_apply)),
-                    E('p', {}, 'Путь загрузки: ' + (({system: 'Системное подключение', direct: 'Изолированное прямое подключение', saved_server: 'Сохранённый сервер подписки'})[s.fetch_path] || '—')),
-                    E('p', {}, 'Контроль HTTPS: ' + timestamp(s.control && s.control.at) + ' · ' + (s.control ? (s.control.ok === true ? 'Получен HTTPS-ответ' : s.control.ok === false ? 'Нет ответа' : 'Неизвестно') + ' · Неудачных проб: ' + s.control.failures : 'Не проверен')),
-                    E('p', {}, 'HTTPS-проба не подтверждает полноценную работу Telegram/Discord, сообщений или звонков.'),
-                    E('p', {}, 'Pending: ' + (s.pending_stale ? 'устарел' : s.pending ? 'ожидает' : 'нет') + ' · Версия: ' + (s.pending_version || '—') + ' · Получена: ' + timestamp(s.pending_version_at) + ' · Проверен: ' + timestamp(s.pending_verified_at)),
-                    E('p', {}, 'Начало выдержки: ' + timestamp(s.pending_series_started_at) + ' · Граница ожидания: ' + timestamp(s.pending_deadline_at)),
-                    E('p', {}, 'Последняя попытка apply: ' + timestamp(s.last_apply_attempt) + ' · ' + (s.last_apply_error || s.apply_blocked_reason || '—')),
-                    E('p', {}, 'Измерения хранятся в RAM. Скорость — ограниченная выборка, не максимум линии. Проверки используют принятые профили.'),
-                    button('Прочитать текущий MAIN', () => this.operation('seed'), unavailable('selector'))
+                ...(s.fetch_stage_error ? [E('div', { 'class': 'stk-notice', role: 'status' }, [
+                    E('strong', {}, 'Подписка скачана, подготовка не удалась'),
+                    E('p', {}, [compatibilityReason(s.fetch_stage_error)]),
+                    ...(count(s.downloaded_count) !== null ? [E('p', {}, 'Скачано серверов: ' + s.downloaded_count)] : [])
+                ])] : []),
+                E('div', { 'class': 'stk-disclosure-stack' }, [
+                    this.routingPanel(s, unavailable('selector')),
+                    ...(s.compatibility ? [this.compatibilityPanel(s)] : [])
                 ])
             ]),
-            E('section', { 'class': 'cbi-section stk-panel stk-section', 'aria-label': 'Проверить серверы' }, [
-                E('div', { 'class': 'stk-controls' }, [E('strong', {}, 'Проверить серверы')].concat(Object.keys(labels).map(kind =>
+            E('section', { 'class': 'cbi-section stk-panel stk-section', 'aria-labelledby': 'stk-servers-title' }, [
+                E('div', { 'class': 'stk-server-header' }, [
+                    E('div', { 'class': 'stk-server-heading' }, [
+                        E('h3', { id: 'stk-servers-title' }, 'Серверы'), E('span', {}, String(nodes.length))
+                    ]),
+                    E('div', { 'class': 'stk-buttons' }, [
+                        button('Проверить задержку всех серверов', () => this.startTests(nodes.map(n => n.id), ['latency']), unavailable('measurement') || !nodes.length),
+                        ...(this.running ? [button('Остановить', () => this.stopTests(), this.stopping)] : [])
+                    ])
+                ]),
+                ...(this.progress ? [E('div', { 'class': 'stk-progress' }, [
+                    E('div', { role: 'status', 'aria-live': 'polite' }, ['Проверено ' + this.progress.done + ' из ' + this.progress.total + '. ' +
+                        (this.stopping && this.running ? 'Останавливаем проверку…' : this.progress.message)]),
+                    E('progress', { value: this.progress.done, max: this.progress.total, 'aria-label': 'Прогресс проверки серверов' })
+                ])] : []),
+                this.details('tests', 'Параметры проверки', [E('div', { 'class': 'stk-controls' }, Object.keys(labels).map(kind =>
                     E('label', {}, [E('input', { type: 'checkbox', checked: this.tests[kind] ? true : null, disabled: this.running || this.localBusy ? true : null,
                         change: event => { this.tests[kind] = event.target.checked; this.redraw(); } }), kind === 'service' ? serviceName : labels[kind]])
-                )).concat([
+                ).concat([
                     E('label', {}, ['Область: ', E('select', { 'class': 'cbi-input-select', disabled: this.running || this.localBusy ? true : null,
                         change: event => { this.scope = event.target.value; } }, [
                         E('option', { value: 'all', selected: this.scope === 'all' ? true : null }, 'Все серверы'),
                         E('option', { value: 'active', selected: this.scope === 'active' ? true : null }, 'Только активный')])]),
                     button('Запустить проверку', () => this.startTests(nodes.filter(n => this.scope === 'all' || n.selected).map(n => n.id), this.selectedTests()),
-                        unavailable('measurement') || !this.selectedTests().length || !nodes.some(n => this.scope === 'all' || n.selected)),
-                    ...(this.running ? [button('Остановить', () => this.stopTests(), this.stopping)] : [])
-                ])),
-                ...(this.progress ? [E('p', { 'class': 'stk-progress', role: 'status', 'aria-live': 'polite' }, 'Проверено ' + this.progress.done + ' из ' + this.progress.total + ' · ' +
-                    (this.stopping && this.running ? 'Остановка: текущая проба завершится и очистит процессы' : this.progress.message))] : [])
-            ]),
-            this.statisticsPanel(nodes),
-            E('div', { 'class': 'stk-table stk-section', tabindex: '0', 'aria-label': 'Таблица серверов' }, E('table', { 'class': 'table' }, [
-                E('tr', { 'class': 'tr table-titles' }, ['Сервер', 'Статус', 'Задержка', serviceName, 'Скорость', 'Проверено', 'Действия'].map(title => E('th', { 'class': 'th', scope: 'col' }, title)))
-            ].concat(rows.length ? rows : [E('tr', { 'class': 'tr' }, E('td', { 'class': 'td', colspan: '7' }, 'Серверов пока нет. Прочитайте текущий MAIN в подробностях.'))])))
+                        unavailable('measurement') || !this.selectedTests().length || !nodes.some(n => this.scope === 'all' || n.selected))
+                ]))]),
+                this.statisticsPanel(nodes),
+                cards.length ? E('div', { 'class': 'stk-grid stk-servers' }, cards) :
+                    E('p', {}, 'Серверов пока нет. В разделе «Подписка и маршрутизация» нажмите «Прочитать текущий MAIN».')
+            ])
         ]);
     },
     render: function(data) {
@@ -399,7 +616,12 @@ return view.extend({
         this.state = data;
         this.container = E('div', {}, [this.content(data)]);
         poll.add(async () => {
-            try { await this.refresh(); } catch (_) { /* Keep the last successful state during a transient RPC failure. */ }
+            if (this.running) return;
+            const token = this.batchToken;
+            try {
+                const state = await status(token || '');
+                if (!this.running && this.batchToken === token) this.redraw(state);
+            } catch (_) { /* Keep the last successful state during a transient RPC failure. */ }
         }, 3);
         return this.container;
     },
